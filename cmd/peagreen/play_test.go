@@ -75,3 +75,21 @@ func TestBlend(t *testing.T) {
 		t.Fatal("two frames on, it should have faded")
 	}
 }
+
+func TestFocusPause(t *testing.T) {
+	p := &player{stay: true}
+	p.focus(false)
+	if !p.paused {
+		t.Fatal("losing focus should pause")
+	}
+	p.focus(true)
+	if p.paused {
+		t.Fatal("getting focus back should carry on")
+	}
+	p.paused = true // paused by hand
+	p.focus(false)
+	p.focus(true)
+	if !p.paused {
+		t.Fatal("a game paused by hand should stay paused")
+	}
+}

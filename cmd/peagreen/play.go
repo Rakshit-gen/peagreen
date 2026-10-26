@@ -52,6 +52,8 @@ type player struct {
 	spk     *speaker
 	quit    bool
 	paused  bool
+	away    bool // paused because the terminal lost focus
+	stay    bool // the -autopause flag
 	help    bool // the key list is up, and the game waits
 	muted   bool
 	ghost   bool                       // the -ghost flag
@@ -74,6 +76,7 @@ func play(args []string) error {
 	wavPath := fs.String("wav", "", "record the sound to this WAV file")
 	colors := fs.String("colors", "auto", "24bit, 256, or auto to go by $COLORTERM")
 	ghost := fs.Bool("ghost", false, "blend each frame with the one before, like the DMG's slow screen")
+	autopause := fs.Bool("autopause", true, "pause while the terminal window doesn't have focus")
 	sound := fs.Bool("sound", true, "play sound through ffplay, sox, pacat or aplay")
 	fs.Usage = func() {
 		fmt.Fprintln(fs.Output(), "usage: peagreen play [flags] game.gb")
@@ -105,6 +108,7 @@ func play(args []string) error {
 	p.bat = battery{path: savPath(fs.Arg(0)), last: append([]byte(nil), m.Cart.RAM...)}
 	p.r.Palette = pal
 	p.ghost = *ghost
+	p.stay = *autopause
 	switch *colors {
 	case "auto":
 		// Terminals with 24-bit colour say so in COLORTERM; the rest get
@@ -149,14 +153,15 @@ func play(args []string) error {
 	if err != nil {
 		return err
 	}
-	// Alternate screen, cursor hidden, and a question for the terminal:
-	// does it speak the kitty keyboard protocol? All undone on the way out.
-	p.write("\x1b[?1049h\x1b[?25l\x1b[2J\x1b[?u")
+	// Alternate screen, cursor hidden, focus reports on, and a question
+	// for the terminal: does it speak the kitty keyboard protocol? All
+	// undone on the way out.
+	p.write("\x1b[?1049h\x1b[?25l\x1b[2J\x1b[?1004h\x1b[?u")
 	defer func() {
 		if p.pad.kitty {
 			p.write("\x1b[<u")
 		}
-		p.write("\x1b[0m\x1b[2J\x1b[?25h\x1b[?1049l")
+		p.write("\x1b[0m\x1b[2J\x1b[?1004l\x1b[?25h\x1b[?1049l")
 		restore()
 	}()
 	sigs := make(chan os.Signal, 1)
@@ -280,6 +285,10 @@ func (p *player) input() {
 				p.write("\x1b[>11u")
 				continue
 			}
+			if e.Key == term.KeyFocusOut || e.Key == term.KeyFocusIn {
+				p.focus(e.Key == term.KeyFocusIn)
+				continue
+			}
 			if e.Key == 'r' {
 				p.back.event(e, p.pad.kitty, time.Now())
 				continue
@@ -293,7 +302,7 @@ func (p *player) input() {
 			case '?', 'h':
 				p.toggleHelp()
 			case 'p':
-				p.paused = !p.paused
+				p.paused, p.away = !p.paused, false
 			case term.KeyTab:
 				p.fast = !p.fast
 				// Start measuring afresh, showing the aim until then.
@@ -336,6 +345,22 @@ func (p *player) measure() {
 	if d := now.Sub(p.since); d >= time.Second {
 		p.rate = float64(p.ran) * float64(framePeriod) / float64(d)
 		p.ran, p.since = 0, now
+	}
+}
+
+// focus pauses the game while the terminal is in the background, and
+// lets go of every key: their releases go to whichever window has focus.
+func (p *player) focus(in bool) {
+	p.pad = keypad{kitty: p.pad.kitty}
+	p.back = key{}
+	if !p.stay {
+		return
+	}
+	switch {
+	case !in && !p.paused:
+		p.paused, p.away = true, true
+	case in && p.away:
+		p.paused, p.away = false, false
 	}
 }
 
