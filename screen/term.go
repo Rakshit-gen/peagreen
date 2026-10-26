@@ -21,7 +21,7 @@ type Renderer struct {
 	valid    bool
 	buf      bytes.Buffer
 	fg, bg   int8 // colours last set, -1 for unknown
-	cx, cy   int  // where the cursor is, 0 for unknown
+	cx, cy   int  // where the cursor is, -1 for unknown
 	palCodes [2][4]string
 }
 
@@ -50,7 +50,7 @@ func (r *Renderer) Frame(frame *[gb.Height][gb.Width]uint8) []byte {
 		r.codes()
 	}
 	r.buf.Reset()
-	r.fg, r.bg, r.cx, r.cy = -1, -1, 0, 0
+	r.fg, r.bg, r.cx, r.cy = -1, -1, -1, -1
 	for y := range rows {
 		for x := range cols {
 			c := r.cell(frame, x, y)

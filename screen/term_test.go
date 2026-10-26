@@ -10,8 +10,11 @@ import (
 
 func TestRendererDiffs(t *testing.T) {
 	var frame [gb.Height][gb.Width]uint8
-	r := &Renderer{Palette: Palettes[0], Col: 1, Row: 1}
+	r := &Renderer{Palette: Palettes[0], Col: 3, Row: 2}
 	first := r.Frame(&frame)
+	if !bytes.HasPrefix(first, []byte("\x1b[2;3H")) {
+		t.Fatalf("the first frame should start by moving to its corner: %q", first[:20])
+	}
 	if n := strings.Count(string(first), "▀"); n != 160*72 {
 		t.Fatalf("first frame drew %d cells, want all %d", n, 160*72)
 	}
@@ -20,7 +23,7 @@ func TestRendererDiffs(t *testing.T) {
 	}
 	frame[5][10] = 3 // row 5 is the bottom half of cell row 2
 	out := string(r.Frame(&frame))
-	if strings.Count(out, "▀") != 1 || !strings.Contains(out, "\x1b[3;11H") {
+	if strings.Count(out, "▀") != 1 || !strings.Contains(out, "\x1b[4;13H") {
 		t.Fatalf("one changed pixel gave %q", out)
 	}
 	dark := Palettes[0].Colors[3]
