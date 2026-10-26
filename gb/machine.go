@@ -22,6 +22,7 @@ type Machine struct {
 	Timer  Timer
 	PPU    PPU
 	Joy    Joypad
+	APU    APU
 
 	DMAState DMAState
 
@@ -71,6 +72,7 @@ func (m *Machine) tick() {
 	m.Cycles += 4
 	m.dmaTick()
 	m.timerTick()
+	m.apuTick()
 	m.ppuTick()
 	m.serialTick()
 }
@@ -137,6 +139,8 @@ func (m *Machine) readIO(a uint16) uint8 {
 	switch {
 	case a >= 0xFF04 && a <= 0xFF07:
 		return m.timerRead(a)
+	case a >= 0xFF10 && a < 0xFF40:
+		return m.APU.read(a)
 	case a >= 0xFF40 && a <= 0xFF4B:
 		return m.ppuRead(a)
 	}
@@ -157,6 +161,9 @@ func (m *Machine) writeIO(a uint16, v uint8) {
 	switch {
 	case a >= 0xFF04 && a <= 0xFF07:
 		m.timerWrite(a, v)
+		return
+	case a >= 0xFF10 && a < 0xFF40:
+		m.APU.write(a, v)
 		return
 	case a >= 0xFF40 && a <= 0xFF4B:
 		m.ppuWrite(a, v)
