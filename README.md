@@ -83,6 +83,7 @@ peagreen play [flags] game.gb
   -colors   24bit, 256, or auto to go by $COLORTERM (default auto)
   -sound    play sound (default true)
   -ghost    blend each frame with the one before, like the DMG's slow screen
+  -autopause  pause while the terminal window is in the background (default true)
   -wav      record the sound to a WAV file
 ```
 
