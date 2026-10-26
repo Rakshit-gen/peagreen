@@ -1,0 +1,5 @@
+/peagreen
+/dist/
+/testdata/roms/
+*.sav
+*.state
