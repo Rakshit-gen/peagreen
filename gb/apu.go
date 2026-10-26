@@ -1,5 +1,7 @@
 package gb
 
+import "math"
+
 // Channel is one sound channel. The four channels share the struct; each
 // uses the fields that apply to it.
 type Channel struct {
@@ -422,5 +424,60 @@ func (a *APU) level(n int) uint8 {
 	return c.Vol
 }
 
-// output mixes the channels into the sample stream.
-func (a *APU) output() {}
+// EnableAudio makes the APU produce stereo samples at rate per second.
+func (m *Machine) EnableAudio(rate int) {
+	m.APU.rate = rate
+	// The output capacitor leaks 0.999958 of its charge per T-cycle.
+	m.APU.highPass = math.Pow(0.999958, float64(cyclesPerSecond)/float64(rate))
+}
+
+// Audio returns the samples made since the last call, left and right
+// interleaved, from -1 to 1. It's only good until the machine runs again,
+// which reuses the space.
+func (m *Machine) Audio() []float32 {
+	s := m.APU.samples
+	m.APU.samples = s[:0]
+	return s
+}
+
+// output mixes the channels for one M-cycle, and adds a sample to the
+// stream whenever enough M-cycles have gone by. Each sample is the mean of
+// the M-cycles it covers, so tones above the output rate don't alias much.
+func (a *APU) output() {
+	if a.rate == 0 {
+		return
+	}
+	var l, r float64
+	if a.On {
+		nr51 := a.Regs[0x15]
+		for n := range a.Ch {
+			if !a.Ch[n].DAC {
+				continue
+			}
+			// A DAC turns 0-15 into a voltage from 1 to -1.
+			v := 1 - float64(a.level(n))/7.5
+			if nr51&(0x10<<n) != 0 {
+				l += v
+			}
+			if nr51&(1<<n) != 0 {
+				r += v
+			}
+		}
+		nr50 := a.Regs[0x14]
+		l *= float64(nr50>>4&7+1) / 32
+		r *= float64(nr50&7+1) / 32
+	}
+	a.sumL += l
+	a.sumR += r
+	a.n++
+	if a.frac += a.rate * 4; a.frac < cyclesPerSecond {
+		return
+	}
+	a.frac -= cyclesPerSecond
+	l, r = a.sumL/float64(a.n), a.sumR/float64(a.n)
+	a.sumL, a.sumR, a.n = 0, 0, 0
+	ol, or := l-a.capL, r-a.capR
+	a.capL = l - ol*a.highPass
+	a.capR = r - or*a.highPass
+	a.samples = append(a.samples, float32(ol), float32(or))
+}
