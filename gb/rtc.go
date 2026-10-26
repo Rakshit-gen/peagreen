@@ -6,8 +6,8 @@ type RTC struct {
 	S, M, H uint8
 	Days    uint16 // 9 bits
 	Halt    bool
-	Carry   bool   // the day counter overflowed
-	Sub     int    // cycles into the current second
+	Carry   bool // the day counter overflowed
+	Sub     int  // cycles into the current second
 	Latched [5]uint8
 	Armed   bool // a 0 was written to the latch register
 }
