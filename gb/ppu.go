@@ -236,8 +236,20 @@ func (m *Machine) dmaTick() {
 	}
 }
 
-// oamBlocked reports whether a running DMA holds OAM, which the CPU then
+// blocked reports whether a running DMA holds OAM, which the CPU then
 // reads as 0xFF and can't write.
-func (m *Machine) oamBlocked(a uint16) bool {
-	return m.DMAState.Active && a >= 0xFE00 && a < 0xFF00
+func (m *Machine) blocked(a uint16) bool {
+	if a >= 0xFE00 && a < 0xFF00 && m.DMAState.Active {
+		return true
+	}
+	// The PPU has OAM to itself while it scans it (mode 2) and while it
+	// draws (mode 3), and VRAM while it draws. The CPU reads 0xFF and its
+	// writes are lost.
+	switch m.PPU.statRead() & 3 {
+	case modeOAM:
+		return a >= 0xFE00 && a < 0xFEA0
+	case modeDraw:
+		return a >= 0x8000 && a < 0xA000 || a >= 0xFE00 && a < 0xFEA0
+	}
+	return false
 }
