@@ -476,6 +476,9 @@ func (p *player) status() {
 	} else if p.fast {
 		line += fmt.Sprintf("  x%d", fastSpeed)
 	}
+	if p.m.Cart.Motor {
+		line += "  ~rumble~"
+	}
 	if p.note != "" && time.Now().Before(p.noteEnd) {
 		line += "  " + p.note
 	} else {
