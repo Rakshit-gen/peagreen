@@ -118,8 +118,14 @@ func TestAcid2(t *testing.T) {
 func runMooneye(m *Machine, seconds int) (passed, done bool) {
 	limit := m.Cycles + uint64(seconds)*cyclesPerSecond
 	for m.Cycles < limit {
-		m.Step()
+		// The tests say they're done by running LD B,B, with the
+		// Fibonacci numbers in B-L for a pass and 0x42s for a failure.
 		c := &m.CPU
+		if m.Read(c.PC) != 0x40 || c.Halted {
+			m.Step()
+			continue
+		}
+		m.Step()
 		if c.B == 3 && c.C == 5 && c.D == 8 && c.E == 13 && c.H == 21 && c.L == 34 {
 			return true, true
 		}
