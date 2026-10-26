@@ -8,6 +8,11 @@ type Timer struct {
 	TIMA uint8
 	TMA  uint8
 	TAC  uint8
+
+	// Reload is where an overflow is: 1 while TIMA reads 0 for the M-cycle
+	// after it, 2 during the M-cycle that copies TMA in. The interrupt is
+	// raised at the overflow; mooneye's rapid_toggle pins that down.
+	Reload uint8
 }
 
 // timerBits is the counter bit TIMA watches, for each TAC clock select.
@@ -20,6 +25,13 @@ func (t *Timer) signal() bool {
 
 func (m *Machine) timerTick() {
 	t := &m.Timer
+	switch t.Reload {
+	case 1:
+		t.TIMA = t.TMA
+		t.Reload = 2
+	case 2:
+		t.Reload = 0
+	}
 	for range 4 {
 		before := t.signal()
 		t.Div++
@@ -32,7 +44,7 @@ func (m *Machine) timerTick() {
 func (m *Machine) timaInc() {
 	t := &m.Timer
 	if t.TIMA++; t.TIMA == 0 {
-		t.TIMA = t.TMA
+		t.Reload = 1
 		m.IF |= IntTimer
 	}
 }
@@ -46,9 +58,16 @@ func (m *Machine) timerWrite(a uint16, v uint8) {
 	case 0xFF04:
 		t.Div = 0
 	case 0xFF05:
-		t.TIMA = v
+		// A write in the delay cancels the reload; one during the reload
+		// loses to TMA.
+		if t.Reload != 2 {
+			t.TIMA, t.Reload = v, 0
+		}
 	case 0xFF06:
 		t.TMA = v
+		if t.Reload == 2 {
+			t.TIMA = v
+		}
 	case 0xFF07:
 		t.TAC = v & 7
 	}
