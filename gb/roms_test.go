@@ -59,3 +59,20 @@ func TestBlarggCPU(t *testing.T) {
 		})
 	}
 }
+
+func TestBlarggTiming(t *testing.T) {
+	for _, name := range []string{
+		"instr_timing/instr_timing",
+		"mem_timing/individual/01-read_timing",
+		"mem_timing/individual/02-write_timing",
+		"mem_timing/individual/03-modify_timing",
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			m := loadROM(t, "blargg/"+name+".gb")
+			if out := runSerial(m, 60); !strings.Contains(out, "Passed") {
+				t.Fatalf("serial said:\n%s", out)
+			}
+		})
+	}
+}
