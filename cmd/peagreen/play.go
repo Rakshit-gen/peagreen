@@ -24,6 +24,7 @@ type player struct {
 	r       screen.Renderer
 	out     *os.File
 	keys    <-chan term.Event
+	pad     keypad
 	quit    bool
 }
 
@@ -113,6 +114,7 @@ func (p *player) loop(sigs <-chan os.Signal) error {
 		default:
 		}
 		p.input()
+		p.m.SetButtons(p.pad.buttons(time.Now()))
 		p.m.RunFrame()
 		p.out.Write(p.r.Frame(&p.m.PPU.Screen))
 		next = next.Add(framePeriod)
@@ -133,6 +135,9 @@ func (p *player) input() {
 			if !ok {
 				p.quit = true
 				return
+			}
+			if e.Release || p.pad.event(e, time.Now()) {
+				continue
 			}
 			switch e.Key {
 			case term.KeyCtrlC, term.KeyEsc, 'q':
