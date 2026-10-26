@@ -20,6 +20,7 @@ type Machine struct {
 	Cart   *Cart
 	Serial Serial
 	Timer  Timer
+	PPU    PPU
 
 	WRAM [0x2000]byte
 	HRAM [0x7F]byte
@@ -55,12 +56,17 @@ func (m *Machine) reset() {
 	c.SP, c.PC = 0xFFFE, 0x0100
 	m.IF = IntVBlank
 	m.Timer.Div = 0xABCC
+	p := &m.PPU
+	p.LCDC, p.BGP = 0x91, 0xFC
+	p.setMode(modeVBlank)
+	p.LY = Height
 }
 
 // tick advances everything but the CPU by one M-cycle (4 T-cycles).
 func (m *Machine) tick() {
 	m.Cycles += 4
 	m.timerTick()
+	m.ppuTick()
 	m.serialTick()
 }
 
@@ -73,11 +79,13 @@ func (m *Machine) Read(a uint16) uint8 {
 	case a < 0x8000:
 		return m.Cart.readROM(a)
 	case a < 0xA000:
-		return 0xFF
+		return m.PPU.VRAM[a-0x8000]
 	case a < 0xC000:
 		return m.Cart.readRAM(a)
 	case a < 0xFE00:
 		return m.WRAM[a&0x1FFF] // 0xE000-0xFDFF echoes WRAM
+	case a < 0xFEA0:
+		return m.PPU.OAM[a-0xFE00]
 	case a < 0xFF00:
 		return 0xFF
 	case a < 0xFF80:
@@ -94,10 +102,13 @@ func (m *Machine) Write(a uint16, v uint8) {
 	case a < 0x8000:
 		m.Cart.writeROM(a, v)
 	case a < 0xA000:
+		m.PPU.VRAM[a-0x8000] = v
 	case a < 0xC000:
 		m.Cart.writeRAM(a, v)
 	case a < 0xFE00:
 		m.WRAM[a&0x1FFF] = v
+	case a < 0xFEA0:
+		m.PPU.OAM[a-0xFE00] = v
 	case a < 0xFF00:
 	case a < 0xFF80:
 		m.writeIO(a, v)
@@ -112,6 +123,8 @@ func (m *Machine) readIO(a uint16) uint8 {
 	switch {
 	case a >= 0xFF04 && a <= 0xFF07:
 		return m.timerRead(a)
+	case a >= 0xFF40 && a <= 0xFF4B:
+		return m.ppuRead(a)
 	}
 	switch a {
 	case 0xFF01:
@@ -128,6 +141,9 @@ func (m *Machine) writeIO(a uint16, v uint8) {
 	switch {
 	case a >= 0xFF04 && a <= 0xFF07:
 		m.timerWrite(a, v)
+		return
+	case a >= 0xFF40 && a <= 0xFF4B:
+		m.ppuWrite(a, v)
 		return
 	}
 	switch a {
