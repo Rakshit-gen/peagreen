@@ -54,3 +54,20 @@ func TestRunPNGAndWAV(t *testing.T) {
 		t.Fatalf("%d bytes of sound for 30 frames", n)
 	}
 }
+
+func TestLoadRefusesColorOnly(t *testing.T) {
+	rom := make([]byte, 0x8000)
+	rom[0x143] = 0xC0
+	path := filepath.Join(t.TempDir(), "color.gbc")
+	if err := os.WriteFile(path, rom, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := load(path); err == nil {
+		t.Fatal("a Color-only game should be refused")
+	}
+	rom[0x143] = 0x80 // works on both
+	os.WriteFile(path, rom, 0o644)
+	if _, err := load(path); err != nil {
+		t.Fatal(err)
+	}
+}

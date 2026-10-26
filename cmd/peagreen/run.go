@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/Rakshit-gen/peagreen/audio"
@@ -108,5 +109,10 @@ func load(path string) (*gb.Machine, error) {
 	if err != nil {
 		return nil, err
 	}
-	return gb.New(rom)
+	m, err := gb.New(rom)
+	if err == nil && m.Cart.Header.CGB == 0xC0 {
+		// These check for the Color's CPU and stop, or worse, crash.
+		return nil, fmt.Errorf("%s is for the Game Boy Color only; peagreen is a DMG", filepath.Base(path))
+	}
+	return m, err
 }
