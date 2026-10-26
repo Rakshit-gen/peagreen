@@ -51,5 +51,3 @@ func main() {
 		os.Exit(1)
 	}
 }
-
-func play(args []string) error { return fmt.Errorf("play isn't written yet") }
