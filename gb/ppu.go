@@ -184,16 +184,44 @@ func (m *Machine) setLCDC(v uint8) {
 	}
 }
 
-// dma copies 160 bytes from v<<8 into OAM. The real copy takes 160
-// M-cycles, during which the CPU can only reach HRAM; games wait it out
-// from HRAM anyway, so it happens at once here.
+// DMAState is an OAM DMA transfer: a cycle of setup after the write to
+// 0xFF46, then one byte per M-cycle for 160 M-cycles. A new write restarts
+// it, and the old transfer keeps going through the new one's setup cycle.
+type DMAState struct {
+	Active  bool
+	Src     uint16
+	Pos     int
+	Pending bool // a transfer starts next M-cycle
+	Next    uint16
+}
+
 func (m *Machine) dma(v uint8) {
 	m.PPU.DMA = v
 	src := uint16(v) << 8
 	if v >= 0xE0 {
 		src -= 0x2000 // 0xE000 and up reads WRAM
 	}
-	for i := range uint16(len(m.PPU.OAM)) {
-		m.PPU.OAM[i] = m.Read(src + i)
+	m.DMAState.Pending, m.DMAState.Next = true, src
+}
+
+func (m *Machine) dmaTick() {
+	d := &m.DMAState
+	if d.Active {
+		if d.Pos == len(m.PPU.OAM) {
+			d.Active = false
+		} else {
+			m.PPU.OAM[d.Pos] = m.Read(d.Src + uint16(d.Pos))
+			d.Pos++
+		}
 	}
+	if d.Pending {
+		d.Pending = false
+		d.Active, d.Src, d.Pos = true, d.Next, 0
+	}
+}
+
+// oamBlocked reports whether a running DMA holds OAM, which the CPU then
+// reads as 0xFF and can't write.
+func (m *Machine) oamBlocked(a uint16) bool {
+	return m.DMAState.Active && a >= 0xFE00 && a < 0xFF00
 }

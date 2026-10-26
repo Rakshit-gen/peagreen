@@ -23,6 +23,8 @@ type Machine struct {
 	PPU    PPU
 	Joy    Joypad
 
+	DMAState DMAState
+
 	WRAM [0x2000]byte
 	HRAM [0x7F]byte
 	IE   uint8
@@ -67,6 +69,7 @@ func (m *Machine) reset() {
 // tick advances everything but the CPU by one M-cycle (4 T-cycles).
 func (m *Machine) tick() {
 	m.Cycles += 4
+	m.dmaTick()
 	m.timerTick()
 	m.ppuTick()
 	m.serialTick()

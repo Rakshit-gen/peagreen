@@ -6,12 +6,17 @@ package gb
 
 func (m *Machine) rd(a uint16) uint8 {
 	m.tick()
+	if m.oamBlocked(a) {
+		return 0xFF
+	}
 	return m.Read(a)
 }
 
 func (m *Machine) wr(a uint16, v uint8) {
 	m.tick()
-	m.Write(a, v)
+	if !m.oamBlocked(a) {
+		m.Write(a, v)
+	}
 }
 
 func (m *Machine) fetch() uint8 {
