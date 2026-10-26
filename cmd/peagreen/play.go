@@ -52,7 +52,8 @@ type player struct {
 	spk     *speaker
 	quit    bool
 	paused  bool
-	help    bool   // the key list is up, and the game waits
+	help    bool // the key list is up, and the game waits
+	muted   bool
 	fast    bool   // run fastSpeed frames for each one shown
 	note    string // a passing message for the status line
 	noteEnd time.Time
@@ -291,6 +292,8 @@ func (p *player) input() {
 				p.fast = !p.fast
 				// Start measuring afresh, showing the aim until then.
 				p.ran, p.since, p.rate = 0, time.Now(), float64(p.speed())
+			case 'm':
+				p.mute()
 			case 'c':
 				p.nextPalette()
 			case 'i':
@@ -326,6 +329,20 @@ func (p *player) speed() int {
 		return fastSpeed
 	}
 	return 1
+}
+
+// mute turns the speaker off or on again. A WAV recording goes on.
+func (p *player) mute() {
+	if p.spk == nil {
+		p.say("there's no sound to mute")
+		return
+	}
+	p.muted = !p.muted
+	if p.muted {
+		p.say("sound off")
+	} else {
+		p.say("sound on")
+	}
 }
 
 // nextPalette switches to the next built-in palette and redraws.
@@ -370,7 +387,7 @@ func (p *player) screenshot() {
 // sound passes on the samples of the frame just run.
 func (p *player) sound() {
 	samples := p.m.Audio()
-	if p.spk != nil && !p.fast {
+	if p.spk != nil && !p.fast && !p.muted {
 		p.spk.play(samples)
 	}
 	if p.wav != nil {
@@ -458,6 +475,7 @@ var helpText = []string{
 	"r (hold)         rewind",
 	", and .          save and load state",
 	"1 to 9           pick the state slot",
+	"m                sound off and on",
 	"c                next palette",
 	"i                screenshot",
 	"q or esc         quit",
