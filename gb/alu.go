@@ -29,6 +29,61 @@ func (c *CPU) alu(y, v uint8) {
 	}
 }
 
+// misc runs the eight one-byte instructions at 0x07-0x3F step 8: RLCA RRCA
+// RLA RRA DAA CPL SCF CCF.
+func (c *CPU) misc(y uint8) {
+	a, cy := c.A, c.flag(flagC)
+	switch y {
+	case 0:
+		c.A = a<<1 | a>>7
+		c.setFlags(false, false, false, a&0x80 != 0)
+	case 1:
+		c.A = a>>1 | a<<7
+		c.setFlags(false, false, false, a&1 != 0)
+	case 2:
+		c.A = a << 1
+		if cy {
+			c.A |= 1
+		}
+		c.setFlags(false, false, false, a&0x80 != 0)
+	case 3:
+		c.A = a >> 1
+		if cy {
+			c.A |= 0x80
+		}
+		c.setFlags(false, false, false, a&1 != 0)
+	case 4:
+		c.daa()
+	case 5:
+		c.A = ^a
+		c.F |= flagN | flagH
+	case 6:
+		c.setFlags(c.flag(flagZ), false, false, true)
+	case 7:
+		c.setFlags(c.flag(flagZ), false, false, !cy)
+	}
+}
+
+// daa fixes A up into binary-coded decimal after an add or subtract.
+func (c *CPU) daa() {
+	a, cy := c.A, c.flag(flagC)
+	var adj uint8
+	if c.flag(flagH) || (!c.flag(flagN) && a&0xF > 9) {
+		adj |= 0x06
+	}
+	if cy || (!c.flag(flagN) && a > 0x99) {
+		adj |= 0x60
+		cy = true
+	}
+	if c.flag(flagN) {
+		a -= adj
+	} else {
+		a += adj
+	}
+	c.A = a
+	c.setFlags(a == 0, c.flag(flagN), false, cy)
+}
+
 func (c *CPU) inc(v uint8) uint8 {
 	r := v + 1
 	c.setFlags(r == 0, false, v&0xF == 0xF, c.flag(flagC))

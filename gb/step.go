@@ -218,6 +218,8 @@ func (m *Machine) exec(op uint8) {
 		hl, v := c.hl(), m.rp(y>>1)
 		c.setFlags(c.flag(flagZ), false, hl&0xFFF+v&0xFFF > 0xFFF, uint32(hl)+uint32(v) > 0xFFFF)
 		c.setHL(hl + v)
+	case x == 0 && z == 7:
+		c.misc(y)
 	case op == 0xE8: // ADD SP,e
 		v := c.spPlus(m.fetch())
 		m.tick()
