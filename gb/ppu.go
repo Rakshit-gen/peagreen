@@ -107,13 +107,29 @@ func (m *Machine) updateStat() {
 	p.StatLine = line
 }
 
+// statRead is STAT as the CPU sees it. The mode bits change one M-cycle
+// after the PPU switches mode: the switch to mode 3 or 0 raises its
+// interrupt at once, but a read in the same M-cycle still shows the old
+// mode.
+func (p *PPU) statRead() uint8 {
+	if p.LCDC&0x80 != 0 && p.LY < Height {
+		switch p.Dot {
+		case 80:
+			return p.STAT&^3 | modeOAM
+		case 80 + 172:
+			return p.STAT&^3 | modeDraw
+		}
+	}
+	return p.STAT
+}
+
 func (m *Machine) ppuRead(a uint16) uint8 {
 	p := &m.PPU
 	switch a {
 	case 0xFF40:
 		return p.LCDC
 	case 0xFF41:
-		return p.STAT | 0x80
+		return p.statRead() | 0x80
 	case 0xFF42:
 		return p.SCY
 	case 0xFF43:
