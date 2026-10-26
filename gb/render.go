@@ -34,17 +34,11 @@ func (m *Machine) renderLine() {
 	}
 }
 
-// renderSprites draws up to ten sprites on line LY. On the DMG the sprite
-// with the lower X wins, then the one earlier in OAM. A winning pixel
-// hides the sprites below it even when the background then hides it.
-func (m *Machine) renderSprites(bg *[Width]uint8) {
-	p := &m.PPU
-	ly := int(p.LY)
-	h := 8
-	if p.LCDC&4 != 0 {
-		h = 16
-	}
-	var line [10]int // OAM indexes, in OAM order
+// lineSprites picks the up to ten sprites on line LY, in OAM order, then
+// sorts them by X, keeping OAM order for ties. It returns their OAM
+// indexes, in line.
+func (p *PPU) lineSprites(line *[10]int) []int {
+	ly, h := int(p.LY), p.spriteHeight()
 	n := 0
 	for i := 0; i < 40 && n < 10; i++ {
 		y := int(p.OAM[i*4]) - 16
@@ -53,13 +47,30 @@ func (m *Machine) renderSprites(bg *[Width]uint8) {
 			n++
 		}
 	}
-	// Insertion sort by X keeps OAM order for ties.
 	sel := line[:n]
 	for i := 1; i < n; i++ {
 		for j := i; j > 0 && p.OAM[sel[j]*4+1] < p.OAM[sel[j-1]*4+1]; j-- {
 			sel[j], sel[j-1] = sel[j-1], sel[j]
 		}
 	}
+	return sel
+}
+
+func (p *PPU) spriteHeight() int {
+	if p.LCDC&4 != 0 {
+		return 16
+	}
+	return 8
+}
+
+// renderSprites draws up to ten sprites on line LY. On the DMG the sprite
+// with the lower X wins, then the one earlier in OAM. A winning pixel
+// hides the sprites below it even when the background then hides it.
+func (m *Machine) renderSprites(bg *[Width]uint8) {
+	p := &m.PPU
+	ly, h := int(p.LY), p.spriteHeight()
+	var line [10]int
+	sel := p.lineSprites(&line)
 	var taken [Width]bool
 	for _, i := range sel {
 		o := p.OAM[i*4 : i*4+4]
