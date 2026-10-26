@@ -49,6 +49,7 @@ type player struct {
 	history *rewind
 	bat     battery
 	wav     *audio.WAV
+	spk     *speaker
 	quit    bool
 	paused  bool
 	fast    bool // run fastSpeed frames for each one shown
@@ -62,6 +63,7 @@ func play(args []string) error {
 	palName := fs.String("palette", "green", "palette: green, pocket, gray or amber")
 	size := fs.String("size", "auto", "full (160x72 cells), half (80x36) or auto")
 	wavPath := fs.String("wav", "", "record the sound to this WAV file")
+	sound := fs.Bool("sound", true, "play sound through ffplay, sox, pacat or aplay")
 	fs.Usage = func() {
 		fmt.Fprintln(fs.Output(), "usage: peagreen play [flags] game.gb")
 		fs.PrintDefaults()
@@ -94,14 +96,22 @@ func play(args []string) error {
 	if err := p.fit(*size); err != nil {
 		return err
 	}
+	if *sound {
+		if p.spk, err = openSpeaker(); err != nil {
+			p.say("%v", err)
+		} else {
+			m.EnableAudio(soundRate)
+			defer p.spk.close()
+		}
+	}
 	if *wavPath != "" {
 		f, err := os.Create(*wavPath)
 		if err != nil {
 			return err
 		}
 		defer f.Close()
-		m.EnableAudio(48000)
-		if p.wav, err = audio.NewWAV(f, 48000); err != nil {
+		m.EnableAudio(soundRate)
+		if p.wav, err = audio.NewWAV(f, soundRate); err != nil {
 			return err
 		}
 		defer func() {
@@ -312,6 +322,9 @@ func (p *player) screenshot() {
 // sound passes on the samples of the frame just run.
 func (p *player) sound() {
 	samples := p.m.Audio()
+	if p.spk != nil && !p.fast {
+		p.spk.play(samples)
+	}
 	if p.wav != nil {
 		if err := p.wav.Write(samples); err != nil {
 			p.say("recording stopped: %v", err)
