@@ -103,13 +103,10 @@ func (p *PPU) drawLength() int {
 	}
 	var line [10]int
 	var seen [32]bool // background tiles a sprite has already waited on
+	stall := 0
 	for _, i := range p.lineSprites(&line) {
 		x := int(p.OAM[i*4+1])
-		switch {
-		case x >= 168:
-			continue
-		case x == 0:
-			n += 11
+		if x >= 168 {
 			continue
 		}
 		// Where the sprite's left edge is, counted from the left of the
@@ -117,11 +114,14 @@ func (p *PPU) drawLength() int {
 		at := x + int(p.SCX&7)
 		if tile := at / 8; !seen[tile] {
 			seen[tile] = true
-			n += max(0, 5-at%8)
+			stall += max(0, 5-at%8)
 		}
-		n += 6
+		stall += 6
 	}
-	return n
+	// The CPU sees mode 0 three dots sooner after sprites than these add
+	// up to, going by mooneye's intr_2_mode0_timing_sprites, which checks
+	// 106 layouts against the hardware.
+	return n + max(0, stall-3)
 }
 
 // updateStat raises the STAT interrupt when any enabled source turns on
