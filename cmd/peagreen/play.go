@@ -18,6 +18,8 @@ import (
 // a 4.194304 MHz clock, about 59.73 frames a second.
 const framePeriod = time.Second * 70224 / 4194304
 
+const fastSpeed = 4
+
 type player struct {
 	m       *gb.Machine
 	romPath string
@@ -27,6 +29,7 @@ type player struct {
 	pad     keypad
 	quit    bool
 	paused  bool
+	fast    bool // run fastSpeed frames for each one shown
 	note    string // a passing message for the status line
 	noteEnd time.Time
 	shown   string // the status line as last drawn
@@ -124,7 +127,9 @@ func (p *player) loop(sigs <-chan os.Signal) error {
 		p.input()
 		if !p.paused {
 			p.m.SetButtons(p.pad.buttons(time.Now()))
-			p.m.RunFrame()
+			for range p.speed() {
+				p.m.RunFrame()
+			}
 			p.out.Write(p.r.Frame(&p.m.PPU.Screen))
 		}
 		p.status()
@@ -162,11 +167,20 @@ func (p *player) input() {
 				p.quit = true
 			case 'p':
 				p.paused = !p.paused
+			case term.KeyTab:
+				p.fast = !p.fast
 			}
 		default:
 			return
 		}
 	}
+}
+
+func (p *player) speed() int {
+	if p.fast {
+		return fastSpeed
+	}
+	return 1
 }
 
 // say shows a message on the status line for a few seconds.
@@ -180,11 +194,13 @@ func (p *player) status() {
 	line := p.m.Cart.Header.Title
 	if p.paused {
 		line += "  paused"
+	} else if p.fast {
+		line += fmt.Sprintf("  x%d", fastSpeed)
 	}
 	if p.note != "" && time.Now().Before(p.noteEnd) {
 		line += "  " + p.note
 	} else {
-		line += "  p pause  q quit"
+		line += "  p pause  tab fast  q quit"
 	}
 	cols, rows := p.r.Size()
 	if len(line) > cols {
