@@ -7,18 +7,29 @@ import "io"
 // 0xFF, as from an empty port.
 type Serial struct {
 	SB, SC uint8
-	Left   int // T-cycles until the transfer in progress ends
+	Left   int  // bits left to shift in the transfer in progress
+	Clock  bool // the serial clock's last level
 }
+
+// serialBit is the bit of the system counter the internal serial clock
+// is taken from: 8192 Hz. Because it's the same counter DIV shows, clock
+// edges line up with the time since power on, not with the write to SC.
+const serialBit = 0x100
 
 // SetSerial sends every byte the game shifts out of the link port to w.
 func (m *Machine) SetSerial(w io.Writer) { m.serialOut = w }
 
 func (m *Machine) serialTick() {
 	s := &m.Serial
-	if s.Left <= 0 {
+	// The transfer ends, and the interrupt fires, an M-cycle before the
+	// counter's edge shows in DIV.
+	clock := (m.Timer.Div+4)&serialBit != 0
+	fell := s.Clock && !clock
+	s.Clock = clock
+	if s.Left <= 0 || !fell {
 		return
 	}
-	if s.Left -= 4; s.Left > 0 {
+	if s.Left--; s.Left > 0 {
 		return
 	}
 	if m.serialOut != nil {
@@ -34,6 +45,6 @@ func (m *Machine) writeSC(v uint8) {
 	s.SC = v
 	// Only the internal clock moves without a partner: 8 bits at 8192 Hz.
 	if v&0x81 == 0x81 {
-		s.Left = 8 * 512
+		s.Left = 8
 	}
 }
