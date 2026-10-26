@@ -21,6 +21,7 @@ type Machine struct {
 	Serial Serial
 	Timer  Timer
 	PPU    PPU
+	Joy    Joypad
 
 	WRAM [0x2000]byte
 	HRAM [0x7F]byte
@@ -56,6 +57,7 @@ func (m *Machine) reset() {
 	c.SP, c.PC = 0xFFFE, 0x0100
 	m.IF = IntVBlank
 	m.Timer.Div = 0xABCC
+	m.Joy.Select = 0x30
 	p := &m.PPU
 	p.LCDC, p.BGP = 0x91, 0xFC
 	p.setMode(modeVBlank)
@@ -136,6 +138,8 @@ func (m *Machine) readIO(a uint16) uint8 {
 		return m.ppuRead(a)
 	}
 	switch a {
+	case 0xFF00:
+		return m.Joy.read()
 	case 0xFF01:
 		return m.Serial.SB
 	case 0xFF02:
@@ -156,6 +160,8 @@ func (m *Machine) writeIO(a uint16, v uint8) {
 		return
 	}
 	switch a {
+	case 0xFF00:
+		m.Joy.Select = v & 0x30
 	case 0xFF01:
 		m.Serial.SB = v
 	case 0xFF02:
