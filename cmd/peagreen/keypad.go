@@ -23,13 +23,36 @@ const (
 	repeatHold = 100 * time.Millisecond
 )
 
-// keypad turns key events into held buttons. With the kitty protocol the
-// terminal reports releases, and buttons are held exactly as long as
-// their keys.
+// key tracks whether one key is held. With the kitty protocol the
+// terminal reports releases, and a key is held exactly until it comes up.
+type key struct {
+	down  bool
+	until time.Time
+}
+
+func (h *key) event(e term.Event, kitty bool, now time.Time) {
+	if kitty {
+		h.down = !e.Release
+		return
+	}
+	hold := firstHold
+	if now.Before(h.until) {
+		hold = repeatHold
+	}
+	h.until = now.Add(hold)
+}
+
+func (h *key) held(kitty bool, now time.Time) bool {
+	if kitty {
+		return h.down
+	}
+	return now.Before(h.until)
+}
+
+// keypad turns key events into held buttons.
 type keypad struct {
 	kitty bool
-	down  gb.Button
-	until [8]time.Time
+	keys  [8]key // one for each button, by bit
 }
 
 // event takes a key event and says whether it was a button.
@@ -38,23 +61,10 @@ func (k *keypad) event(e term.Event, now time.Time) bool {
 	if !ok {
 		return false
 	}
-	if !e.Release {
-		k.lift(opposite[b])
+	if o := opposite[b]; o != 0 && !e.Release {
+		k.keys[bit(o)] = key{}
 	}
-	if k.kitty {
-		if e.Release {
-			k.down &^= b
-		} else {
-			k.down |= b
-		}
-		return true
-	}
-	i := bit(b)
-	hold := firstHold
-	if now.Before(k.until[i]) {
-		hold = repeatHold
-	}
-	k.until[i] = now.Add(hold)
+	k.keys[bit(b)].event(e, k.kitty, now)
 	return true
 }
 
@@ -62,21 +72,11 @@ func (k *keypad) event(e term.Event, now time.Time) bool {
 // some games misbehave if they read both. The newer press wins.
 var opposite = map[gb.Button]gb.Button{gb.Left: gb.Right, gb.Right: gb.Left, gb.Up: gb.Down, gb.Down: gb.Up}
 
-func (k *keypad) lift(b gb.Button) {
-	if b != 0 {
-		k.down &^= b
-		k.until[bit(b)] = time.Time{}
-	}
-}
-
 // buttons is what is held at now.
 func (k *keypad) buttons(now time.Time) gb.Button {
-	if k.kitty {
-		return k.down
-	}
 	var held gb.Button
-	for i, t := range k.until {
-		if now.Before(t) {
+	for i := range k.keys {
+		if k.keys[i].held(k.kitty, now) {
 			held |= 1 << i
 		}
 	}
