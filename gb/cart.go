@@ -55,6 +55,9 @@ func NewCart(rom []byte) (*Cart, error) {
 	case 0x05, 0x06:
 		c.kind = mapMBC2
 		c.Battery = h.Type == 0x06
+	case 0x0F, 0x10, 0x11, 0x12, 0x13:
+		c.kind = mapMBC3
+		c.Battery = h.Type == 0x0F || h.Type == 0x10 || h.Type == 0x13
 	default:
 		return nil, fmt.Errorf("cartridge type 0x%02X is not supported", h.Type)
 	}
@@ -97,6 +100,18 @@ func (c *Cart) writeROM(a uint16, v uint8) {
 		c.RAMBank = 0
 		if c.Mode == 1 {
 			c.RAMBank = int(c.Bank2)
+		}
+	case mapMBC3:
+		switch {
+		case a < 0x2000:
+			c.RAMOn = v&0x0F == 0x0A
+		case a < 0x4000:
+			c.ROMBank = int(v & 0x7F)
+			if c.ROMBank == 0 {
+				c.ROMBank = 1
+			}
+		case a < 0x6000:
+			c.RAMBank = int(v & 0x0F)
 		}
 	case mapMBC2:
 		// Address bit 8 picks the register for the whole 0x0000-0x3FFF range.
