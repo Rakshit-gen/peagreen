@@ -2,6 +2,7 @@ package screen
 
 import (
 	"bytes"
+	"image/color"
 	"strconv"
 
 	"github.com/Rakshit-gen/peagreen/gb"
@@ -14,6 +15,7 @@ import (
 type Renderer struct {
 	Palette Palette
 	Half    bool
+	Colors  int // 0 for 24-bit colour, 256 for terminals with only the xterm palette
 	Col     int // where the frame's top left cell goes, from 1
 	Row     int
 
@@ -105,8 +107,53 @@ func (r *Renderer) put(x, y int, c cell) {
 // codes works out the colour escapes for the palette.
 func (r *Renderer) codes() {
 	for i, c := range r.Palette.Colors {
-		rgb := strconv.Itoa(int(c.R)) + ";" + strconv.Itoa(int(c.G)) + ";" + strconv.Itoa(int(c.B)) + "m"
-		r.palCodes[0][i] = "\x1b[38;2;" + rgb
-		r.palCodes[1][i] = "\x1b[48;2;" + rgb
+		code := "2;" + strconv.Itoa(int(c.R)) + ";" + strconv.Itoa(int(c.G)) + ";" + strconv.Itoa(int(c.B)) + "m"
+		if r.Colors == 256 {
+			code = "5;" + strconv.Itoa(xterm256(c)) + "m"
+		}
+		r.palCodes[0][i] = "\x1b[38;" + code
+		r.palCodes[1][i] = "\x1b[48;" + code
 	}
+}
+
+// xterm256 is the nearest colour among the xterm palette's 6x6x6 cube
+// (16-231) and grey ramp (232-255). The first 16 are left out: terminals
+// change them with their themes. Greys are only used for colours that are
+// close to grey already; the darkest green is nearer a grey than any cube
+// colour, but a grey loses the green.
+func xterm256(c color.RGBA) int {
+	levels := [6]int{0, 95, 135, 175, 215, 255}
+	near := func(v uint8) int {
+		best := 0
+		for i, l := range levels {
+			if abs(int(v)-l) < abs(int(v)-levels[best]) {
+				best = i
+			}
+		}
+		return best
+	}
+	r, g, b := near(c.R), near(c.G), near(c.B)
+	cube := 16 + 36*r + 6*g + b
+	dist := func(r2, g2, b2 int) int {
+		dr, dg, db := int(c.R)-r2, int(c.G)-g2, int(c.B)-b2
+		return dr*dr + dg*dg + db*db
+	}
+	best, bestDist := cube, dist(levels[r], levels[g], levels[b])
+	if max(c.R, c.G, c.B)-min(c.R, c.G, c.B) > 16 {
+		return best
+	}
+	for i := range 24 {
+		v := 8 + 10*i
+		if d := dist(v, v, v); d < bestDist {
+			best, bestDist = 232+i, d
+		}
+	}
+	return best
+}
+
+func abs(x int) int {
+	if x < 0 {
+		return -x
+	}
+	return x
 }

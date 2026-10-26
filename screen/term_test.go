@@ -2,6 +2,7 @@ package screen
 
 import (
 	"bytes"
+	"image/color"
 	"strings"
 	"testing"
 
@@ -45,5 +46,31 @@ func TestRendererHalf(t *testing.T) {
 	}
 	if c := r.cell(&frame, 0, 0); c != (cell{2, 0}) {
 		t.Fatalf("cell = %+v, want the darkest shade on top", c)
+	}
+}
+
+func TestXterm256(t *testing.T) {
+	for _, c := range []struct {
+		in   color.RGBA
+		want int
+	}{
+		{color.RGBA{0, 0, 0, 255}, 16},
+		{color.RGBA{255, 255, 255, 255}, 231},
+		{color.RGBA{255, 0, 0, 255}, 196},
+		{color.RGBA{128, 128, 128, 255}, 244}, // the grey ramp is closer than the cube
+		{color.RGBA{0x0F, 0x38, 0x0F, 255}, 22},
+	} {
+		if got := xterm256(c.in); got != c.want {
+			t.Errorf("xterm256(%v) = %d, want %d", c.in, got, c.want)
+		}
+	}
+}
+
+func TestRenderer256(t *testing.T) {
+	var frame [gb.Height][gb.Width]uint8
+	r := &Renderer{Palette: Palettes[0], Colors: 256, Col: 1, Row: 1}
+	out := string(r.Frame(&frame))
+	if strings.Contains(out, ";2;") || !strings.Contains(out, "\x1b[38;5;") {
+		t.Fatalf("256-colour output should use only 5; codes: %q", out[:40])
 	}
 }
