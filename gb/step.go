@@ -73,6 +73,74 @@ func (m *Machine) setReg(i, v uint8) {
 	}
 }
 
+// rp reads 16-bit register pair i: BC DE HL SP.
+func (m *Machine) rp(i uint8) uint16 {
+	c := &m.CPU
+	switch i {
+	case 0:
+		return c.bc()
+	case 1:
+		return c.de()
+	case 2:
+		return c.hl()
+	}
+	return c.SP
+}
+
+func (m *Machine) setRP(i uint8, v uint16) {
+	c := &m.CPU
+	switch i {
+	case 0:
+		c.setBC(v)
+	case 1:
+		c.setDE(v)
+	case 2:
+		c.setHL(v)
+	default:
+		c.SP = v
+	}
+}
+
+func (m *Machine) push(v uint16) {
+	c := &m.CPU
+	c.SP--
+	m.wr(c.SP, uint8(v>>8))
+	c.SP--
+	m.wr(c.SP, uint8(v))
+}
+
+func (m *Machine) pop() uint16 {
+	c := &m.CPU
+	lo := m.rd(c.SP)
+	c.SP++
+	hi := m.rd(c.SP)
+	c.SP++
+	return uint16(hi)<<8 | uint16(lo)
+}
+
+// indirect is LD (rr),A and LD A,(rr) for rr = BC, DE, HL+ and HL-.
+func (m *Machine) indirect(y uint8) {
+	c := &m.CPU
+	var a uint16
+	switch y >> 1 {
+	case 0:
+		a = c.bc()
+	case 1:
+		a = c.de()
+	case 2:
+		a = c.hl()
+		c.setHL(a + 1)
+	case 3:
+		a = c.hl()
+		c.setHL(a - 1)
+	}
+	if y&1 == 0 {
+		m.wr(a, c.A)
+	} else {
+		c.A = m.rd(a)
+	}
+}
+
 // Step runs one instruction, or one M-cycle of a halted or hung CPU.
 func (m *Machine) Step() {
 	c := &m.CPU
@@ -94,6 +162,42 @@ func (m *Machine) exec(op uint8) {
 		m.setReg(y, m.reg(z))
 	case x == 0 && z == 6: // LD r,n
 		m.setReg(y, m.fetch())
+	case x == 0 && z == 1 && y&1 == 0: // LD rr,nn
+		m.setRP(y>>1, m.fetch16())
+	case x == 0 && z == 2:
+		m.indirect(y)
+	case op == 0x08: // LD (nn),SP
+		a := m.fetch16()
+		m.wr(a, uint8(c.SP))
+		m.wr(a+1, uint8(c.SP>>8))
+	case op == 0xE0: // LDH (n),A
+		m.wr(0xFF00|uint16(m.fetch()), c.A)
+	case op == 0xF0: // LDH A,(n)
+		c.A = m.rd(0xFF00 | uint16(m.fetch()))
+	case op == 0xE2: // LD (C),A
+		m.wr(0xFF00|uint16(c.C), c.A)
+	case op == 0xF2: // LD A,(C)
+		c.A = m.rd(0xFF00 | uint16(c.C))
+	case op == 0xEA: // LD (nn),A
+		m.wr(m.fetch16(), c.A)
+	case op == 0xFA: // LD A,(nn)
+		c.A = m.rd(m.fetch16())
+	case op == 0xF9: // LD SP,HL
+		m.tick()
+		c.SP = c.hl()
+	case x == 3 && z == 1 && y&1 == 0: // POP
+		if v := m.pop(); y>>1 == 3 {
+			c.setAF(v)
+		} else {
+			m.setRP(y>>1, v)
+		}
+	case x == 3 && z == 5 && y&1 == 0: // PUSH
+		m.tick()
+		if y>>1 == 3 {
+			m.push(c.af())
+		} else {
+			m.push(m.rp(y >> 1))
+		}
 	default:
 		c.Locked = true
 	}
