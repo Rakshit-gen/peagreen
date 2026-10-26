@@ -27,6 +27,14 @@ const fastSpeed = 4
 // its battery RAM and writes the save file if it did.
 const saveEvery = 120
 
+// Rewind keeps a state every rewindEvery frames for the last rewindSeconds,
+// about 13 MB, and goes back one state each frame r is held, so it plays
+// backwards at six times the speed.
+const (
+	rewindEvery   = 6
+	rewindSeconds = 30
+)
+
 type player struct {
 	m       *gb.Machine
 	romPath string
@@ -34,6 +42,8 @@ type player struct {
 	out     *os.File
 	keys    <-chan term.Event
 	pad     keypad
+	back    key // r, held to rewind
+	history *rewind
 	bat     battery
 	quit    bool
 	paused  bool
@@ -73,7 +83,7 @@ func play(args []string) error {
 	if err := loadBattery(m, fs.Arg(0)); err != nil {
 		return err
 	}
-	p := &player{m: m, romPath: fs.Arg(0), out: os.Stdout}
+	p := &player{m: m, romPath: fs.Arg(0), out: os.Stdout, history: newRewind(rewindSeconds * 60 / rewindEvery)}
 	p.bat = battery{path: savPath(fs.Arg(0)), last: append([]byte(nil), m.Cart.RAM...)}
 	p.r.Palette = pal
 	if err := p.fit(*size); err != nil {
@@ -143,9 +153,15 @@ func (p *player) loop(sigs <-chan os.Signal) error {
 		default:
 		}
 		p.input()
-		if !p.paused {
+		switch {
+		case p.back.held(p.pad.kitty, time.Now()):
+			p.stepBack()
+		case !p.paused:
 			p.m.SetButtons(p.pad.buttons(time.Now()))
 			for range p.speed() {
+				if p.m.PPU.Frames%rewindEvery == 0 {
+					p.history.push(p.m.Save())
+				}
 				p.m.RunFrame()
 			}
 			p.out.Write(p.r.Frame(&p.m.PPU.Screen))
@@ -180,6 +196,10 @@ func (p *player) input() {
 				// escape code so releases come for letters too.
 				p.pad.kitty = true
 				p.write("\x1b[>11u")
+				continue
+			}
+			if e.Key == 'r' {
+				p.back.event(e, p.pad.kitty, time.Now())
 				continue
 			}
 			if e.Release || p.pad.event(e, time.Now()) {
@@ -253,6 +273,20 @@ func (p *player) screenshot() {
 	}
 }
 
+// stepBack goes back to the newest state in the history.
+func (p *player) stepBack() {
+	s := p.history.pop()
+	if s == nil {
+		p.say("can't rewind further")
+		return
+	}
+	if err := p.m.Load(s); err != nil {
+		p.say("rewind: %v", err)
+		return
+	}
+	p.out.Write(p.r.Frame(&p.m.PPU.Screen))
+}
+
 // statePath is where the save state lives, next to the ROM.
 func (p *player) statePath() string {
 	return strings.TrimSuffix(p.romPath, filepath.Ext(p.romPath)) + ".state"
@@ -316,7 +350,7 @@ func (p *player) status() {
 	if p.note != "" && time.Now().Before(p.noteEnd) {
 		line += "  " + p.note
 	} else {
-		line += "  p pause  tab fast  q quit"
+		line += "  p pause  tab fast  r rewind  q quit"
 	}
 	cols, rows := p.r.Size()
 	if len(line) > cols {
