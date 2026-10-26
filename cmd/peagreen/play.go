@@ -52,6 +52,7 @@ type player struct {
 	spk     *speaker
 	quit    bool
 	paused  bool
+	help    bool // the key list is up, and the game waits
 	fast    bool // run fastSpeed frames for each one shown
 	note    string // a passing message for the status line
 	noteEnd time.Time
@@ -196,7 +197,7 @@ func (p *player) loop(sigs, winch <-chan os.Signal) error {
 		}
 		p.input()
 		switch {
-		case p.small:
+		case p.small, p.help:
 		case p.back.held(p.pad.kitty, time.Now()):
 			p.stepBack()
 		case !p.paused:
@@ -254,6 +255,8 @@ func (p *player) input() {
 			switch e.Key {
 			case term.KeyCtrlC, term.KeyEsc, 'q':
 				p.quit = true
+			case '?', 'h':
+				p.toggleHelp()
 			case 'p':
 				p.paused = !p.paused
 			case term.KeyTab:
@@ -393,6 +396,50 @@ func (p *player) loadState() {
 	p.say("state loaded")
 }
 
+var helpText = []string{
+	"arrows or wasd   d-pad",
+	"x or k           A",
+	"z or j           B",
+	"enter            Start",
+	"backspace        Select",
+	"",
+	"p                pause",
+	"tab              fast-forward",
+	"r (hold)         rewind",
+	", and .          save and load state",
+	"c                next palette",
+	"i                screenshot",
+	"q or esc         quit",
+	"",
+	"? or h           close this",
+}
+
+// toggleHelp shows the keys over the frame, or takes them away.
+func (p *player) toggleHelp() {
+	p.help = !p.help
+	if !p.help {
+		p.r.Invalidate()
+		p.out.Write(p.r.Frame(&p.m.PPU.Screen))
+		return
+	}
+	cols, rows := p.r.Size()
+	width := 0
+	for _, l := range helpText {
+		width = max(width, len(l))
+	}
+	width += 4
+	top := p.r.Row + (rows-len(helpText)-2)/2
+	left := p.r.Col + (cols-width)/2
+	p.write("\x1b[0m")
+	for i := -1; i <= len(helpText); i++ {
+		l := ""
+		if i >= 0 && i < len(helpText) {
+			l = helpText[i]
+		}
+		fmt.Fprintf(p.out, "\x1b[%d;%dH  %-*s  ", top+1+i, left, width-4, l)
+	}
+}
+
 // say shows a message on the status line for a few seconds.
 func (p *player) say(format string, args ...any) {
 	p.note = fmt.Sprintf(format, args...)
@@ -410,7 +457,7 @@ func (p *player) status() {
 	if p.note != "" && time.Now().Before(p.noteEnd) {
 		line += "  " + p.note
 	} else {
-		line += "  p pause  tab fast  r rewind  q quit"
+		line += "  ? keys  p pause  tab fast  q quit"
 	}
 	cols, rows := p.r.Size()
 	if len(line) > cols {
