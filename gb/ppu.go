@@ -23,6 +23,7 @@ type PPU struct {
 
 	LCDC, STAT, SCY, SCX, LY, LYC uint8
 	BGP, OBP0, OBP1, WY, WX       uint8
+	DMA                           uint8
 
 	Dot      int  // dot (T-cycle) within the current line
 	WinLine  int  // the window's own line counter
@@ -121,6 +122,8 @@ func (m *Machine) ppuRead(a uint16) uint8 {
 		return p.LY
 	case 0xFF45:
 		return p.LYC
+	case 0xFF46:
+		return p.DMA
 	case 0xFF47:
 		return p.BGP
 	case 0xFF48:
@@ -148,6 +151,8 @@ func (m *Machine) ppuWrite(a uint16, v uint8) {
 		p.SCX = v
 	case 0xFF45:
 		p.LYC = v
+	case 0xFF46:
+		m.dma(v)
 	case 0xFF47:
 		p.BGP = v
 	case 0xFF48:
@@ -176,5 +181,19 @@ func (m *Machine) setLCDC(v uint8) {
 		p.LY, p.Dot = 0, 0
 		p.WinLine, p.WinY = 0, p.WY == 0
 		p.setMode(modeOAM)
+	}
+}
+
+// dma copies 160 bytes from v<<8 into OAM. The real copy takes 160
+// M-cycles, during which the CPU can only reach HRAM; games wait it out
+// from HRAM anyway, so it happens at once here.
+func (m *Machine) dma(v uint8) {
+	m.PPU.DMA = v
+	src := uint16(v) << 8
+	if v >= 0xE0 {
+		src -= 0x2000 // 0xE000 and up reads WRAM
+	}
+	for i := range uint16(len(m.PPU.OAM)) {
+		m.PPU.OAM[i] = m.Read(src + i)
 	}
 }
