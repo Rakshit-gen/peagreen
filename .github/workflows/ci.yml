@@ -1,0 +1,53 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: test ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - name: gofmt
+        run: test -z "$(gofmt -l .)" || (gofmt -l . && exit 1)
+      - name: vet
+        run: go vet ./...
+      - name: go.mod is tidy
+        run: go mod tidy -diff
+      - name: cache test ROMs
+        uses: actions/cache@v4
+        with:
+          path: testdata/roms
+          key: roms-${{ hashFiles('scripts/testroms.sh') }}
+      - name: download test ROMs
+        run: sh scripts/testroms.sh
+      - name: test
+        run: go test -race ./...
+
+  cross-compile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - name: build for every release target
+        run: |
+          set -eu
+          for target in darwin/arm64 darwin/amd64 linux/amd64 linux/arm64; do
+            echo "building $target"
+            CGO_ENABLED=0 GOOS="${target%/*}" GOARCH="${target#*/}" go build -o /dev/null ./cmd/peagreen
+          done
