@@ -116,3 +116,29 @@ out), and `-until` stops as soon as the link port output contains the
 text, failing if it never does. `-wav` records the sound.
 
 `peagreen info game.gb` prints what the cartridge header says.
+
+## Accuracy
+
+peagreen is tested against the public test ROMs that Game Boy emulators
+are usually measured by. `make roms` downloads them (each one checked
+against a pinned SHA-256) and `make test` runs them along with the unit
+tests. What passes today:
+
+| Suite | Result |
+| --- | --- |
+| blargg `cpu_instrs` | 11 of 11 |
+| blargg `instr_timing` | passes |
+| blargg `mem_timing` | 3 of 3 |
+| blargg `dmg_sound` | 12 of 12 |
+| blargg `oam_bug` | 7 of 8 |
+| dmg-acid2 | matches the reference image pixel for pixel |
+| mooneye acceptance | 66 of 75; the other 9 are for other models (DMG-0, MGB, SGB) |
+| mooneye mapper tests (MBC1, MBC2, MBC5) | 28 tests, all of them |
+| mooneye `sprite_priority` | matches the reference image |
+
+The CPU runs at M-cycle granularity: memory accesses land on the cycle
+they do on the hardware, which is what the timing tests check. The PPU
+works out how long each line's drawing takes from the scroll, the window
+and the sprites on it, so mid-line effects and STAT interrupts happen when
+games expect them. The OAM bug, where touching sprite memory at the wrong
+moment scrambles it, is emulated.
