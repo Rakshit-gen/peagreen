@@ -196,6 +196,10 @@ func (p *player) input() {
 				p.nextPalette()
 			case 'i':
 				p.screenshot()
+			case ',':
+				p.saveState()
+			case '.':
+				p.loadState()
 			}
 		default:
 			return
@@ -247,6 +251,52 @@ func (p *player) screenshot() {
 		p.say("saved %s", filepath.Base(path))
 		return
 	}
+}
+
+// statePath is where the save state lives, next to the ROM.
+func (p *player) statePath() string {
+	return strings.TrimSuffix(p.romPath, filepath.Ext(p.romPath)) + ".state"
+}
+
+func (p *player) saveState() {
+	path := p.statePath()
+	f, err := os.Create(path + ".tmp")
+	if err == nil {
+		err = gb.WriteState(f, p.m.Save())
+		if cerr := f.Close(); err == nil {
+			err = cerr
+		}
+	}
+	if err == nil {
+		err = os.Rename(path+".tmp", path)
+	}
+	if err != nil {
+		p.say("couldn't save the state: %v", err)
+		return
+	}
+	p.say("state saved")
+}
+
+func (p *player) loadState() {
+	f, err := os.Open(p.statePath())
+	if errors.Is(err, fs.ErrNotExist) {
+		p.say("no saved state yet; , saves one")
+		return
+	}
+	var s *gb.State
+	if err == nil {
+		s, err = gb.ReadState(f)
+		f.Close()
+	}
+	if err == nil {
+		err = p.m.Load(s)
+	}
+	if err != nil {
+		p.say("couldn't load the state: %v", err)
+		return
+	}
+	p.out.Write(p.r.Frame(&p.m.PPU.Screen))
+	p.say("state loaded")
 }
 
 // say shows a message on the status line for a few seconds.
