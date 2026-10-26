@@ -166,3 +166,23 @@ func TestMooneye(t *testing.T) {
 		})
 	}
 }
+
+func TestMooneyeMappers(t *testing.T) {
+	for _, name := range []string{
+		"mbc1/bits_bank1", "mbc1/bits_bank2", "mbc1/bits_mode", "mbc1/bits_ramg",
+		"mbc1/ram_256kb", "mbc1/ram_64kb", "mbc1/rom_16Mb", "mbc1/rom_1Mb",
+		"mbc1/rom_2Mb", "mbc1/rom_4Mb", "mbc1/rom_512kb", "mbc1/rom_8Mb",
+		"mbc2/bits_ramg", "mbc2/bits_romb", "mbc2/bits_unused", "mbc2/ram",
+		"mbc2/rom_1Mb", "mbc2/rom_2Mb", "mbc2/rom_512kb",
+		"mbc5/rom_16Mb", "mbc5/rom_1Mb", "mbc5/rom_2Mb", "mbc5/rom_32Mb",
+		"mbc5/rom_4Mb", "mbc5/rom_512kb", "mbc5/rom_64Mb", "mbc5/rom_8Mb",
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			m := loadROM(t, "mooneye/emulator-only/"+name+".gb")
+			if passed, done := runMooneye(m, 10); !passed {
+				t.Fatalf("passed=%v finished=%v", passed, done)
+			}
+		})
+	}
+}
