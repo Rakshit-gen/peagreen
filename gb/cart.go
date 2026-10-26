@@ -52,10 +52,16 @@ func NewCart(rom []byte) (*Cart, error) {
 		c.kind = mapMBC1
 		c.Battery = h.Type == 0x03
 		c.Bank1 = 1
+	case 0x05, 0x06:
+		c.kind = mapMBC2
+		c.Battery = h.Type == 0x06
 	default:
 		return nil, fmt.Errorf("cartridge type 0x%02X is not supported", h.Type)
 	}
 	c.RAM = make([]byte, h.RAMSize)
+	if c.kind == mapMBC2 {
+		c.RAM = make([]byte, 512)
+	}
 	return c, nil
 }
 
@@ -92,6 +98,19 @@ func (c *Cart) writeROM(a uint16, v uint8) {
 		if c.Mode == 1 {
 			c.RAMBank = int(c.Bank2)
 		}
+	case mapMBC2:
+		// Address bit 8 picks the register for the whole 0x0000-0x3FFF range.
+		if a >= 0x4000 {
+			return
+		}
+		if a&0x100 == 0 {
+			c.RAMOn = v&0x0F == 0x0A
+		} else {
+			c.ROMBank = int(v & 0x0F)
+			if c.ROMBank == 0 {
+				c.ROMBank = 1
+			}
+		}
 	}
 }
 
@@ -100,6 +119,14 @@ func (c *Cart) writeROM(a uint16, v uint8) {
 func (c *Cart) ramOn() bool { return c.kind == mapNone || c.RAMOn }
 
 func (c *Cart) readRAM(a uint16) uint8 {
+	if c.kind == mapMBC2 {
+		if !c.RAMOn {
+			return 0xFF
+		}
+		// 512 half-bytes, repeated over the whole range. The top half of
+		// each byte isn't wired and reads as ones.
+		return c.RAM[a&0x1FF] | 0xF0
+	}
 	i := c.RAMBank*0x2000 + int(a-0xA000)
 	if len(c.RAM) == 0 || !c.ramOn() {
 		return 0xFF
@@ -108,6 +135,12 @@ func (c *Cart) readRAM(a uint16) uint8 {
 }
 
 func (c *Cart) writeRAM(a uint16, v uint8) {
+	if c.kind == mapMBC2 {
+		if c.RAMOn {
+			c.RAM[a&0x1FF] = v & 0x0F
+		}
+		return
+	}
 	if len(c.RAM) == 0 || !c.ramOn() {
 		return
 	}
