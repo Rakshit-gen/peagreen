@@ -13,7 +13,7 @@ import (
 // romDir is where scripts/testroms.sh puts the public test ROMs.
 const romDir = "../testdata/roms"
 
-func loadROM(t *testing.T, path string) *Machine {
+func loadROM(t testing.TB, path string) *Machine {
 	t.Helper()
 	rom, err := os.ReadFile(filepath.Join(romDir, path))
 	if os.IsNotExist(err) {
