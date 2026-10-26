@@ -6,6 +6,19 @@ package gb
 
 func (m *Machine) rd(a uint16) uint8 {
 	m.tick()
+	m.oamBug(a, oamRead)
+	return m.read(a)
+}
+
+// rdInc is rd for LD A,(HL+) and LD A,(HL-), whose increment lands in the
+// same M-cycle as the read.
+func (m *Machine) rdInc(a uint16) uint8 {
+	m.tick()
+	m.oamBug(a, oamReadInc)
+	return m.read(a)
+}
+
+func (m *Machine) read(a uint16) uint8 {
 	if m.blocked(a, false) {
 		return 0xFF
 	}
@@ -14,6 +27,7 @@ func (m *Machine) rd(a uint16) uint8 {
 
 func (m *Machine) wr(a uint16, v uint8) {
 	m.tick()
+	m.oamBug(a, oamWrite)
 	if !m.blocked(a, true) {
 		m.Write(a, v)
 	}
@@ -24,6 +38,7 @@ func (m *Machine) fetch() uint8 {
 	if m.CPU.HaltBug {
 		m.CPU.HaltBug = false
 	} else {
+		m.oamBug(m.CPU.PC, oamWrite)
 		m.CPU.PC++
 	}
 	return v
@@ -108,6 +123,7 @@ func (m *Machine) setRP(i uint8, v uint16) {
 
 func (m *Machine) push(v uint16) {
 	c := &m.CPU
+	m.oamBug(c.SP, oamWrite)
 	c.SP--
 	m.wr(c.SP, uint8(v>>8))
 	c.SP--
@@ -116,7 +132,7 @@ func (m *Machine) push(v uint16) {
 
 func (m *Machine) pop() uint16 {
 	c := &m.CPU
-	lo := m.rd(c.SP)
+	lo := m.rdInc(c.SP)
 	c.SP++
 	hi := m.rd(c.SP)
 	c.SP++
@@ -139,9 +155,12 @@ func (m *Machine) indirect(y uint8) {
 		a = c.hl()
 		c.setHL(a - 1)
 	}
-	if y&1 == 0 {
+	switch {
+	case y&1 == 0:
 		m.wr(a, c.A)
-	} else {
+	case y>>1 >= 2:
+		c.A = m.rdInc(a)
+	default:
 		c.A = m.rd(a)
 	}
 }
@@ -178,6 +197,7 @@ func (m *Machine) interrupt() bool {
 	c.IME = false
 	m.tick()
 	m.tick()
+	m.oamBug(c.SP, oamWrite)
 	c.SP--
 	m.wr(c.SP, uint8(c.PC>>8))
 	// Pushing the high byte can land on IE and cancel the interrupt, in
@@ -273,6 +293,7 @@ func (m *Machine) exec(op uint8) {
 		m.setReg(y, c.dec(m.reg(y)))
 	case x == 0 && z == 3: // INC rr, DEC rr
 		m.tick()
+		m.oamBug(m.rp(y>>1), oamWrite)
 		if y&1 == 0 {
 			m.setRP(y>>1, m.rp(y>>1)+1)
 		} else {

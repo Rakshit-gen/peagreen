@@ -250,7 +250,10 @@ func TestBlarggSound(t *testing.T) {
 }
 
 func TestBlarggOAMBug(t *testing.T) {
-	for _, name := range []string{"1-lcd_sync", "3-non_causes", "6-timing_no_bug"} {
+	for _, name := range []string{
+		"1-lcd_sync", "2-causes", "3-non_causes", "4-scanline_timing",
+		"5-timing_bug", "6-timing_no_bug", "8-instr_effect",
+	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			m := loadROM(t, "blargg/oam_bug/rom_singles/"+name+".gb")
