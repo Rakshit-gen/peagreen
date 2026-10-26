@@ -84,6 +84,38 @@ func (c *CPU) daa() {
 	c.setFlags(a == 0, c.flag(flagN), false, cy)
 }
 
+// shift runs CB operation y on v: RLC RRC RL RR SLA SRA SWAP SRL.
+func (c *CPU) shift(y, v uint8) uint8 {
+	var r uint8
+	out := false
+	switch y {
+	case 0:
+		r, out = v<<1|v>>7, v&0x80 != 0
+	case 1:
+		r, out = v>>1|v<<7, v&1 != 0
+	case 2:
+		r, out = v<<1, v&0x80 != 0
+		if c.flag(flagC) {
+			r |= 1
+		}
+	case 3:
+		r, out = v>>1, v&1 != 0
+		if c.flag(flagC) {
+			r |= 0x80
+		}
+	case 4:
+		r, out = v<<1, v&0x80 != 0
+	case 5:
+		r, out = v>>1|v&0x80, v&1 != 0
+	case 6:
+		r = v<<4 | v>>4
+	case 7:
+		r, out = v>>1, v&1 != 0
+	}
+	c.setFlags(r == 0, false, false, out)
+	return r
+}
+
 func (c *CPU) inc(v uint8) uint8 {
 	r := v + 1
 	c.setFlags(r == 0, false, v&0xF == 0xF, c.flag(flagC))

@@ -254,6 +254,8 @@ func (m *Machine) exec(op uint8) {
 		m.tick()
 		m.push(c.PC)
 		c.PC = uint16(y) * 8
+	case op == 0xCB:
+		m.execCB(m.fetch())
 	case op == 0xE8: // ADD SP,e
 		v := c.spPlus(m.fetch())
 		m.tick()
@@ -265,6 +267,23 @@ func (m *Machine) exec(op uint8) {
 		c.setHL(v)
 	default:
 		c.Locked = true
+	}
+}
+
+// execCB runs the second byte of a CB-prefixed instruction.
+func (m *Machine) execCB(op uint8) {
+	c := &m.CPU
+	x, y, z := op>>6, op>>3&7, op&7
+	switch x {
+	case 0:
+		m.setReg(z, c.shift(y, m.reg(z)))
+	case 1: // BIT
+		v := m.reg(z)
+		c.setFlags(v&(1<<y) == 0, false, true, c.flag(flagC))
+	case 2: // RES
+		m.setReg(z, m.reg(z)&^(1<<y))
+	case 3: // SET
+		m.setReg(z, m.reg(z)|1<<y)
 	}
 }
 
