@@ -52,8 +52,8 @@ type player struct {
 	spk     *speaker
 	quit    bool
 	paused  bool
-	help    bool // the key list is up, and the game waits
-	fast    bool // run fastSpeed frames for each one shown
+	help    bool   // the key list is up, and the game waits
+	fast    bool   // run fastSpeed frames for each one shown
 	note    string // a passing message for the status line
 	noteEnd time.Time
 	shown   string // the status line as last drawn
