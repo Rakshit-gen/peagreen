@@ -206,7 +206,36 @@ func (m *Machine) exec(op uint8) {
 		m.setReg(y, c.inc(m.reg(y)))
 	case x == 0 && z == 5: // DEC r
 		m.setReg(y, c.dec(m.reg(y)))
+	case x == 0 && z == 3: // INC rr, DEC rr
+		m.tick()
+		if y&1 == 0 {
+			m.setRP(y>>1, m.rp(y>>1)+1)
+		} else {
+			m.setRP(y>>1, m.rp(y>>1)-1)
+		}
+	case x == 0 && z == 1: // ADD HL,rr
+		m.tick()
+		hl, v := c.hl(), m.rp(y>>1)
+		c.setFlags(c.flag(flagZ), false, hl&0xFFF+v&0xFFF > 0xFFF, uint32(hl)+uint32(v) > 0xFFFF)
+		c.setHL(hl + v)
+	case op == 0xE8: // ADD SP,e
+		v := c.spPlus(m.fetch())
+		m.tick()
+		m.tick()
+		c.SP = v
+	case op == 0xF8: // LD HL,SP+e
+		v := c.spPlus(m.fetch())
+		m.tick()
+		c.setHL(v)
 	default:
 		c.Locked = true
 	}
+}
+
+// spPlus adds a signed byte to SP. The flags come from adding the low byte
+// as if it were unsigned.
+func (c *CPU) spPlus(e uint8) uint16 {
+	sp := c.SP
+	c.setFlags(false, false, sp&0xF+uint16(e&0xF) > 0xF, sp&0xFF+uint16(e) > 0xFF)
+	return sp + uint16(int8(e))
 }
