@@ -39,3 +39,20 @@ func TestParsePartial(t *testing.T) {
 		t.Fatalf("ESC q: %v", keys(evs))
 	}
 }
+
+func TestParseKitty(t *testing.T) {
+	evs, _ := Parse([]byte("\x1b[?11u\x1b[97u\x1b[97;1:2u\x1b[97;1:3u\x1b[1;1:3A\x1b[13u\x1b[99;5u\x1b[15;1:3~"))
+	want := []Event{
+		{Key: KeyKitty},
+		{Key: 'a'},
+		{Key: 'a', Repeat: true},
+		{Key: 'a', Release: true},
+		{Key: KeyUp, Release: true},
+		{Key: KeyEnter},
+		{Key: KeyCtrlC},
+		{Key: KeyF5, Release: true},
+	}
+	if !reflect.DeepEqual(evs, want) {
+		t.Fatalf("got  %+v\nwant %+v", evs, want)
+	}
+}

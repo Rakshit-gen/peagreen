@@ -117,15 +117,57 @@ func parseCSI(buf []byte) (Event, int) {
 	}
 	params, final := string(buf[2:i]), buf[i]
 	n := i + 1
+	if len(params) > 0 && params[0] == '?' {
+		if final == 'u' { // the answer to CSI ? u: the kitty protocol is there
+			return Event{Key: KeyKitty}, n
+		}
+		return Event{}, n
+	}
 	nums := splitParams(params)
 	first := 1
 	if len(nums) > 0 && len(nums[0]) > 0 {
 		first = nums[0][0]
 	}
-	if final == '~' {
-		return Event{Key: tildeKey(first)}, n
+	// The kitty protocol puts modifiers and the event type in the second
+	// parameter, as mods:event, with 1 press, 2 repeat, 3 release.
+	var ev Event
+	mods := 1
+	if len(nums) > 1 && len(nums[1]) > 0 {
+		mods = nums[1][0]
+		if len(nums[1]) > 1 {
+			ev.Repeat = nums[1][1] == 2
+			ev.Release = nums[1][1] == 3
+		}
 	}
-	return Event{Key: finalKey(final, first)}, n
+	switch final {
+	case '~':
+		ev.Key = tildeKey(first)
+	case 'u':
+		ev.Key = kittyKey(first, mods)
+	default:
+		ev.Key = finalKey(final, first)
+	}
+	return ev, n
+}
+
+// kittyKey is the key for a kitty CSI u code point.
+func kittyKey(cp, mods int) Key {
+	ctrl := (mods-1)&4 != 0
+	switch {
+	case cp == 13:
+		return KeyEnter
+	case cp == 9:
+		return KeyTab
+	case cp == 127 || cp == 8:
+		return KeyBackspace
+	case cp == 27:
+		return KeyEsc
+	case ctrl && cp == 'c':
+		return KeyCtrlC
+	case cp >= 0x20 && cp < 0x7F:
+		return Key(cp)
+	}
+	return KeyUnknown
 }
 
 // splitParams turns "1;5:3" into [[1] [5 3]].
