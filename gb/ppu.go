@@ -29,6 +29,8 @@ type PPU struct {
 	WinLine  int  // the window's own line counter
 	WinY     bool // LY has matched WY this frame, so the window may show
 	StatLine bool // the STAT interrupt line, which fires on its rising edge
+	DrawEnd  int  // the dot this line's mode 3 ends on
+	ModeAt   int  // the dot the mode last changed on
 
 	// Screen holds shades 0 (lightest) to 3 for the frame being drawn. It's
 	// complete between the start of vblank and the start of the next frame.
@@ -49,12 +51,14 @@ func (m *Machine) ppuTick() {
 	}
 	p.Dot += 4
 	if p.LY < Height {
-		switch p.Dot {
-		case 80:
+		switch {
+		case p.Dot == 80:
 			p.setMode(modeDraw)
+			p.ModeAt, p.DrawEnd = p.Dot, 80+p.drawLength()
 			m.renderLine()
-		case 80 + 172:
+		case p.mode() == modeDraw && p.Dot >= p.DrawEnd:
 			p.setMode(modeHBlank)
+			p.ModeAt = p.Dot
 		}
 	}
 	if p.Dot >= lineDots {
@@ -82,6 +86,42 @@ func (m *Machine) nextLine() {
 	if p.LY == p.WY {
 		p.WinY = true
 	}
+}
+
+// drawLength is how many dots mode 3 takes on this line. It's 172 at the
+// least; the fine scroll throws pixels away first, the window restarts the
+// fetcher, and each sprite stalls it, by 6 dots and up to 5 more depending
+// on where the sprite sits against the background tiles. (The rules are
+// from the Pan Docs' "Mode 3 length".)
+func (p *PPU) drawLength() int {
+	n := 172 + int(p.SCX&7)
+	if p.LCDC&0x20 != 0 && p.WinY && p.WX <= 166 {
+		n += 6
+	}
+	if p.LCDC&2 == 0 {
+		return n
+	}
+	var line [10]int
+	var seen [32]bool // background tiles a sprite has already waited on
+	for _, i := range p.lineSprites(&line) {
+		x := int(p.OAM[i*4+1])
+		switch {
+		case x >= 168:
+			continue
+		case x == 0:
+			n += 11
+			continue
+		}
+		// Where the sprite's left edge is, counted from the left of the
+		// tile just off screen, so it's never negative.
+		at := x + int(p.SCX&7)
+		if tile := at / 8; !seen[tile] {
+			seen[tile] = true
+			n += max(0, 5-at%8)
+		}
+		n += 6
+	}
+	return n
 }
 
 // updateStat raises the STAT interrupt when any enabled source turns on
@@ -112,11 +152,11 @@ func (m *Machine) updateStat() {
 // interrupt at once, but a read in the same M-cycle still shows the old
 // mode.
 func (p *PPU) statRead() uint8 {
-	if p.LCDC&0x80 != 0 && p.LY < Height {
-		switch p.Dot {
-		case 80:
+	if p.LCDC&0x80 != 0 && p.LY < Height && p.Dot == p.ModeAt {
+		switch p.mode() {
+		case modeDraw:
 			return p.STAT&^3 | modeOAM
-		case 80 + 172:
+		case modeHBlank:
 			return p.STAT&^3 | modeDraw
 		}
 	}
