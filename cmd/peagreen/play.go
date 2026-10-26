@@ -57,6 +57,9 @@ type player struct {
 	note    string // a passing message for the status line
 	noteEnd time.Time
 	shown   string // the status line as last drawn
+	ran     int    // frames run since since, for the measured speed
+	since   time.Time
+	rate    float64 // the measured speed, against the hardware's
 }
 
 func play(args []string) error {
@@ -230,6 +233,7 @@ func (p *player) loop(sigs, winch <-chan os.Signal) error {
 				}
 				p.m.RunFrame()
 				p.sound()
+				p.ran++
 			}
 			p.out.Write(p.r.Frame(&p.m.PPU.Screen))
 		}
@@ -238,6 +242,7 @@ func (p *player) loop(sigs, winch <-chan os.Signal) error {
 				p.say("couldn't write the save: %v", err)
 			}
 		}
+		p.measure()
 		if !p.small {
 			p.status()
 		}
@@ -283,6 +288,8 @@ func (p *player) input() {
 				p.paused = !p.paused
 			case term.KeyTab:
 				p.fast = !p.fast
+				// Start measuring afresh, showing the aim until then.
+				p.ran, p.since, p.rate = 0, time.Now(), float64(p.speed())
 			case 'c':
 				p.nextPalette()
 			case 'i':
@@ -295,6 +302,18 @@ func (p *player) input() {
 		default:
 			return
 		}
+	}
+}
+
+// measure works out, about once a second, how fast the game really ran.
+func (p *player) measure() {
+	now := time.Now()
+	if p.since.IsZero() {
+		p.since = now
+	}
+	if d := now.Sub(p.since); d >= time.Second {
+		p.rate = float64(p.ran) * float64(framePeriod) / float64(d)
+		p.ran, p.since = 0, now
 	}
 }
 
@@ -474,7 +493,8 @@ func (p *player) status() {
 	if p.paused {
 		line += "  paused"
 	} else if p.fast {
-		line += fmt.Sprintf("  x%d", fastSpeed)
+		// What it reaches, which a slow machine can keep under fastSpeed.
+		line += fmt.Sprintf("  x%.1f", p.rate)
 	}
 	if p.m.CPU.Locked {
 		// Nothing more will happen; say why, or it looks like peagreen hung.

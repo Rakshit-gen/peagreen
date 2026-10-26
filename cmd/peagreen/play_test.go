@@ -1,6 +1,10 @@
 package main
 
-import "testing"
+import (
+	"math"
+	"testing"
+	"time"
+)
 
 func TestLayout(t *testing.T) {
 	for _, c := range []struct {
@@ -29,5 +33,14 @@ func TestLayout(t *testing.T) {
 			t.Errorf("%s in %dx%d: half %v at %d,%d, want half %v at %d,%d",
 				c.size, c.cols, c.rows, p.r.Half, p.r.Col, p.r.Row, c.half, c.col, c.row)
 		}
+	}
+}
+
+func TestMeasure(t *testing.T) {
+	p := &player{since: time.Now().Add(-2 * time.Second), ran: 240}
+	p.measure()
+	// 240 frames of about 16.74 ms in 2 s is about twice full speed.
+	if math.Abs(p.rate-2.01) > 0.02 || p.ran != 0 {
+		t.Fatalf("rate %.3f, ran %d; want about 2.01 and 0", p.rate, p.ran)
 	}
 }
