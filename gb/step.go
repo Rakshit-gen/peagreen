@@ -198,6 +198,14 @@ func (m *Machine) exec(op uint8) {
 		} else {
 			m.push(m.rp(y >> 1))
 		}
+	case x == 2: // ALU A,r
+		c.alu(y, m.reg(z))
+	case x == 3 && z == 6: // ALU A,n
+		c.alu(y, m.fetch())
+	case x == 0 && z == 4: // INC r
+		m.setReg(y, c.inc(m.reg(y)))
+	case x == 0 && z == 5: // DEC r
+		m.setReg(y, c.dec(m.reg(y)))
 	default:
 		c.Locked = true
 	}
