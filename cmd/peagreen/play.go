@@ -64,6 +64,7 @@ func play(args []string) error {
 	palName := fs.String("palette", "green", "palette: green, pocket, gray or amber")
 	size := fs.String("size", "auto", "full (160x72 cells), half (80x36) or auto")
 	wavPath := fs.String("wav", "", "record the sound to this WAV file")
+	colors := fs.String("colors", "auto", "24bit, 256, or auto to go by $COLORTERM")
 	sound := fs.Bool("sound", true, "play sound through ffplay, sox, pacat or aplay")
 	fs.Usage = func() {
 		fmt.Fprintln(fs.Output(), "usage: peagreen play [flags] game.gb")
@@ -94,6 +95,19 @@ func play(args []string) error {
 	p := &player{m: m, romPath: fs.Arg(0), out: os.Stdout, size: *size, history: newRewind(rewindSeconds * 60 / rewindEvery)}
 	p.bat = battery{path: savPath(fs.Arg(0)), last: append([]byte(nil), m.Cart.RAM...)}
 	p.r.Palette = pal
+	switch *colors {
+	case "auto":
+		// Terminals with 24-bit colour say so in COLORTERM; the rest get
+		// the xterm palette, which nearly all of them have.
+		if ct := os.Getenv("COLORTERM"); ct != "truecolor" && ct != "24bit" {
+			p.r.Colors = 256
+		}
+	case "256":
+		p.r.Colors = 256
+	case "24bit":
+	default:
+		return fmt.Errorf("-colors is 24bit, 256 or auto, not %q", *colors)
+	}
 	if err := p.fit(*size); err != nil {
 		return err
 	}
