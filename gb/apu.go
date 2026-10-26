@@ -93,11 +93,12 @@ func (a *APU) write(addr uint16, v uint8) {
 	if addr == 0xFF26 {
 		on := v&0x80 != 0
 		if a.On && !on {
-			// Powering off clears every register.
-			for r := range 0x16 {
-				a.write(0xFF10+uint16(r), 0)
+			// Powering off clears every register, but on the DMG the
+			// length counters survive.
+			clear(a.Regs[:0x16])
+			for n := range a.Ch {
+				a.Ch[n] = Channel{Length: a.Ch[n].Length}
 			}
-			a.Ch = [4]Channel{}
 		}
 		if !a.On && on {
 			a.Seq = 0
@@ -106,6 +107,13 @@ func (a *APU) write(addr uint16, v uint8) {
 		return
 	}
 	if !a.On {
+		// The DMG still takes length writes while off.
+		switch i {
+		case 0x01, 0x06, 0x10:
+			a.Ch[i/5].Length = 64 - int(v&63)
+		case 0x0B:
+			a.Ch[2].Length = 256 - int(v)
+		}
 		return
 	}
 	a.Regs[i] = v
