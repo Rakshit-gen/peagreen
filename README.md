@@ -142,3 +142,20 @@ works out how long each line's drawing takes from the scroll, the window
 and the sprites on it, so mid-line effects and STAT interrupts happen when
 games expect them. The OAM bug, where touching sprite memory at the wrong
 moment scrambles it, is emulated.
+
+## Speed
+
+A frame takes about 1.2 ms to emulate with sound on an Apple M4
+(`make bench`), against 16.7 ms on the hardware, so there's room to
+spare even on slow machines. Drawing is cheaper still: only the character
+cells that changed since the last frame are sent to the terminal.
+
+## Limits
+
+- Original Game Boy only. Game Boy Color games that also run on the DMG
+  play in its four shades; Color-only games are refused.
+- Cartridges with no mapper, MBC1 (including multicarts), MBC2, MBC3 with
+  its clock, and MBC5. Not MBC6, MBC7, HuC1, HuC3 or the camera.
+- blargg's `oam_bug` test 7 (`7-timing_effect`) doesn't pass yet.
+- No link cable between two games.
+- Unix terminals: Linux and macOS. Windows isn't supported.
