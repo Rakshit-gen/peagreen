@@ -25,6 +25,11 @@ type Cart struct {
 	RAMOn   bool
 	ROMBank int // bank mapped at 0x4000
 	RAMBank int
+
+	// MBC1 splits the bank number over two registers, and a mode bit
+	// decides whether the upper one also banks 0x0000 and RAM.
+	Bank1, Bank2 uint8
+	Mode         uint8
 }
 
 // NewCart wraps a ROM image.
@@ -43,6 +48,10 @@ func NewCart(rom []byte) (*Cart, error) {
 	case 0x08, 0x09:
 		c.kind = mapNone
 		c.Battery = h.Type == 0x09
+	case 0x01, 0x02, 0x03:
+		c.kind = mapMBC1
+		c.Battery = h.Type == 0x03
+		c.Bank1 = 1
 	default:
 		return nil, fmt.Errorf("cartridge type 0x%02X is not supported", h.Type)
 	}
@@ -52,23 +61,54 @@ func NewCart(rom []byte) (*Cart, error) {
 
 func (c *Cart) readROM(a uint16) uint8 {
 	if a < 0x4000 {
-		return c.rom[a]
+		bank := 0
+		if c.kind == mapMBC1 && c.Mode == 1 {
+			bank = int(c.Bank2) << 5
+		}
+		return c.rom[(bank%c.banks)*0x4000+int(a)]
 	}
 	return c.rom[(c.ROMBank%c.banks)*0x4000+int(a-0x4000)]
 }
 
-func (c *Cart) writeROM(a uint16, v uint8) {}
+// writeROM is a write to 0x0000-0x7FFF, which goes to the mapper.
+func (c *Cart) writeROM(a uint16, v uint8) {
+	switch c.kind {
+	case mapMBC1:
+		switch {
+		case a < 0x2000:
+			c.RAMOn = v&0x0F == 0x0A
+		case a < 0x4000:
+			c.Bank1 = v & 0x1F
+			if c.Bank1 == 0 {
+				c.Bank1 = 1
+			}
+		case a < 0x6000:
+			c.Bank2 = v & 3
+		default:
+			c.Mode = v & 1
+		}
+		c.ROMBank = int(c.Bank2)<<5 | int(c.Bank1)
+		c.RAMBank = 0
+		if c.Mode == 1 {
+			c.RAMBank = int(c.Bank2)
+		}
+	}
+}
+
+// ramOn reports whether cartridge RAM answers. Mapperless carts have no
+// enable register.
+func (c *Cart) ramOn() bool { return c.kind == mapNone || c.RAMOn }
 
 func (c *Cart) readRAM(a uint16) uint8 {
 	i := c.RAMBank*0x2000 + int(a-0xA000)
-	if len(c.RAM) == 0 {
+	if len(c.RAM) == 0 || !c.ramOn() {
 		return 0xFF
 	}
 	return c.RAM[i%len(c.RAM)]
 }
 
 func (c *Cart) writeRAM(a uint16, v uint8) {
-	if len(c.RAM) == 0 {
+	if len(c.RAM) == 0 || !c.ramOn() {
 		return
 	}
 	c.RAM[(c.RAMBank*0x2000+int(a-0xA000))%len(c.RAM)] = v
