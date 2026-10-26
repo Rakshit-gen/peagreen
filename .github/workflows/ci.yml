@@ -28,7 +28,7 @@ jobs:
       - name: go.mod is tidy
         run: go mod tidy -diff
       - name: cache test ROMs
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: testdata/roms
           key: roms-${{ hashFiles('scripts/testroms.sh') }}
