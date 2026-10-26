@@ -84,3 +84,23 @@ func GlobalOK(rom []byte) bool {
 }
 
 var errShort = errors.New("rom is not a whole number of 16 KiB banks")
+
+var typeNames = map[uint8]string{
+	0x00: "ROM only", 0x01: "MBC1", 0x02: "MBC1+RAM", 0x03: "MBC1+RAM+battery",
+	0x05: "MBC2", 0x06: "MBC2+battery", 0x08: "ROM+RAM", 0x09: "ROM+RAM+battery",
+	0x0B: "MMM01", 0x0C: "MMM01+RAM", 0x0D: "MMM01+RAM+battery",
+	0x0F: "MBC3+timer+battery", 0x10: "MBC3+timer+RAM+battery", 0x11: "MBC3",
+	0x12: "MBC3+RAM", 0x13: "MBC3+RAM+battery",
+	0x19: "MBC5", 0x1A: "MBC5+RAM", 0x1B: "MBC5+RAM+battery", 0x1C: "MBC5+rumble",
+	0x1D: "MBC5+rumble+RAM", 0x1E: "MBC5+rumble+RAM+battery",
+	0x20: "MBC6", 0x22: "MBC7+sensor+rumble+RAM+battery",
+	0xFC: "Pocket Camera", 0xFD: "Bandai TAMA5", 0xFE: "HuC3", 0xFF: "HuC1+RAM+battery",
+}
+
+// TypeName names a cartridge type byte.
+func TypeName(t uint8) string {
+	if n, ok := typeNames[t]; ok {
+		return n
+	}
+	return fmt.Sprintf("unknown (0x%02X)", t)
+}
