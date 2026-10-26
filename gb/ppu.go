@@ -296,10 +296,13 @@ func (m *Machine) dmaTick() {
 }
 
 // blocked reports whether the CPU is shut out of address a, by a running
-// DMA or by the PPU.
-func (m *Machine) blocked(a uint16) bool {
+// DMA or by the PPU, for a read or a write.
+func (m *Machine) blocked(a uint16, write bool) bool {
 	if a >= 0xFE00 && a < 0xFF00 && m.DMAState.Active {
 		return true
+	}
+	if write {
+		return m.writeBlocked(a)
 	}
 	// The PPU has OAM to itself while it scans it (mode 2) and while it
 	// draws (mode 3), and VRAM while it draws. The CPU reads 0xFF and its
@@ -312,11 +315,29 @@ func (m *Machine) blocked(a uint16) bool {
 	if in := p.mode(); !p.Fresh && (in == modeOAM || in == modeDraw) {
 		md = in
 	}
+	return closed(a, md)
+}
+
+// writeBlocked is the PPU's side of blocked for writes, which go by STAT's
+// mode bits alone, apart from the M-cycle mode 3 starts in: then even OAM
+// takes writes, on all but the first line after the LCD is turned on.
+func (m *Machine) writeBlocked(a uint16) bool {
+	p := &m.PPU
+	if !p.Fresh && p.mode() == modeDraw && p.now() == p.ModeAt {
+		return false
+	}
+	return closed(a, p.statRead()&3)
+}
+
+// closed reports whether the PPU holds address a in mode md: OAM in modes
+// 2 and 3, VRAM in mode 3.
+func closed(a uint16, md uint8) bool {
+	oam := a >= 0xFE00 && a < 0xFEA0
 	switch md {
 	case modeOAM:
-		return a >= 0xFE00 && a < 0xFEA0
+		return oam
 	case modeDraw:
-		return a >= 0x8000 && a < 0xA000 || a >= 0xFE00 && a < 0xFEA0
+		return oam || a >= 0x8000 && a < 0xA000
 	}
 	return false
 }

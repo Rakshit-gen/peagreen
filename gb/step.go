@@ -6,7 +6,7 @@ package gb
 
 func (m *Machine) rd(a uint16) uint8 {
 	m.tick()
-	if m.blocked(a) {
+	if m.blocked(a, false) {
 		return 0xFF
 	}
 	return m.Read(a)
@@ -14,7 +14,7 @@ func (m *Machine) rd(a uint16) uint8 {
 
 func (m *Machine) wr(a uint16, v uint8) {
 	m.tick()
-	if !m.blocked(a) {
+	if !m.blocked(a, true) {
 		m.Write(a, v)
 	}
 }

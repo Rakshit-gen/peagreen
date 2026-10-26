@@ -138,7 +138,7 @@ var mooneyePass = []string{
 	"halt_ime0_nointr_timing", "halt_ime1_timing", "halt_ime1_timing2-GS",
 	"if_ie_registers", "instr/daa", "interrupts/ie_push", "intr_timing",
 	"oam_dma/basic", "oam_dma/reg_read", "oam_dma/sources-GS", "pop_timing",
-	"ppu/intr_1_2_timing-GS", "ppu/hblank_ly_scx_timing-GS", "ppu/intr_2_0_timing", "ppu/intr_2_mode0_timing", "ppu/intr_2_mode3_timing", "ppu/intr_2_mode0_timing_sprites", "ppu/lcdon_timing-GS", "ppu/intr_2_oam_ok_timing",
+	"ppu/intr_1_2_timing-GS", "ppu/hblank_ly_scx_timing-GS", "ppu/intr_2_0_timing", "ppu/intr_2_mode0_timing", "ppu/intr_2_mode3_timing", "ppu/intr_2_mode0_timing_sprites", "ppu/lcdon_timing-GS", "ppu/lcdon_write_timing-GS", "ppu/intr_2_oam_ok_timing",
 	"ppu/stat_irq_blocking", "ppu/stat_lyc_onoff", "ppu/vblank_stat_intr-GS",
 	"rapid_di_ei", "reti_intr_timing", "timer/div_write", "timer/rapid_toggle",
 	"timer/tim00", "timer/tim00_div_trigger", "timer/tim01", "timer/tim01_div_trigger",
