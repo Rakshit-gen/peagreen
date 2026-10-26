@@ -42,6 +42,12 @@ type APU struct {
 	Seq  uint8 // frame sequencer step
 	Div  bool  // DIV bit 12 last M-cycle, whose falling edge steps Seq
 
+	// WaveAt is the T-cycle channel 3 last read wave RAM. Only right then
+	// can the CPU reach wave RAM while the channel plays, and then only the
+	// byte the channel is on. Now is the T-cycle of the current CPU access.
+	WaveAt uint64
+	Now    uint64
+
 	rate     int // output samples per second, 0 for none
 	frac     int
 	sumL     float64
@@ -67,6 +73,12 @@ var readMask = [0x30]uint8{
 func (a *APU) read(addr uint16) uint8 {
 	i := addr - 0xFF10
 	if i >= 0x20 {
+		if c := &a.Ch[2]; c.On {
+			if !a.waveOpen() {
+				return 0xFF
+			}
+			return a.Regs[0x20+c.Pos/2]
+		}
 		return a.Regs[i]
 	}
 	if addr == 0xFF26 {
@@ -87,6 +99,12 @@ func (a *APU) read(addr uint16) uint8 {
 func (a *APU) write(addr uint16, v uint8) {
 	i := addr - 0xFF10
 	if i >= 0x20 {
+		if c := &a.Ch[2]; c.On {
+			if a.waveOpen() {
+				a.Regs[0x20+c.Pos/2] = v
+			}
+			return
+		}
 		a.Regs[i] = v
 		return
 	}
@@ -180,6 +198,9 @@ func (a *APU) write(addr uint16, v uint8) {
 			}
 		}
 		if v&0x80 != 0 {
+			if n == 2 {
+				a.corruptWave()
+			}
 			if c.Length == 0 {
 				c.Length = lengthMax(n)
 				if c.LenOn && firstHalf {
@@ -188,6 +209,25 @@ func (a *APU) write(addr uint16, v uint8) {
 			}
 			a.trigger(n)
 		}
+	}
+}
+
+func (a *APU) waveOpen() bool { return a.Now-a.WaveAt <= 1 }
+
+// corruptWave is the DMG bug where retriggering channel 3 just as it
+// reads a sample overwrites the start of wave RAM with the block it was
+// about to read, when that read was due in the next 2 T-cycles.
+func (a *APU) corruptWave() {
+	c := &a.Ch[2]
+	if !c.On || c.Timer < 1 || c.Timer > 2 {
+		return
+	}
+	b := int((c.Pos+1)&31) / 2
+	w := a.Regs[0x20:0x30]
+	if b < 4 {
+		w[0] = w[b]
+	} else {
+		copy(w[0:4], w[b&^3:b&^3+4])
 	}
 }
 
@@ -223,6 +263,8 @@ func (a *APU) trigger(n int) {
 		}
 	case 2:
 		c.Pos = 0
+		// The first sample comes a few cycles late.
+		c.Timer += 6
 	case 3:
 		c.LFSR = 0x7FFF
 	}
@@ -265,6 +307,7 @@ func (m *Machine) apuTick() {
 		a.step()
 	}
 	a.Div = bit
+	a.Now = m.Cycles
 	if !a.On {
 		a.output()
 		return
@@ -273,12 +316,14 @@ func (m *Machine) apuTick() {
 		c := &a.Ch[n]
 		c.Timer -= 4
 		for c.Timer <= 0 {
+			at := m.Cycles + uint64(c.Timer) // Timer is <= 0 here
 			c.Timer += a.period(n)
 			switch n {
 			case 0, 1:
 				c.Pos = (c.Pos + 1) & 7
 			case 2:
 				c.Pos = (c.Pos + 1) & 31
+				a.WaveAt = at
 				b := a.Regs[0x20+c.Pos/2]
 				if c.Pos&1 == 0 {
 					b >>= 4
