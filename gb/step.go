@@ -144,11 +144,52 @@ func (m *Machine) indirect(y uint8) {
 // Step runs one instruction, or one M-cycle of a halted or hung CPU.
 func (m *Machine) Step() {
 	c := &m.CPU
+	if m.interrupt() {
+		return
+	}
 	if c.Locked || c.Halted {
 		m.tick()
 		return
 	}
+	ei := c.EIPending
 	m.exec(m.fetch())
+	// EI lands after the instruction that follows it, unless that was DI.
+	if ei && c.EIPending {
+		c.IME, c.EIPending = true, false
+	}
+}
+
+// interrupt wakes a halted CPU when an enabled interrupt is pending, and
+// jumps to its handler if IME is set. The dispatch takes five M-cycles.
+func (m *Machine) interrupt() bool {
+	c := &m.CPU
+	if c.Locked || m.IE&m.IF&0x1F == 0 {
+		return false
+	}
+	c.Halted = false
+	if !c.IME {
+		return false
+	}
+	c.IME = false
+	m.tick()
+	m.tick()
+	c.SP--
+	m.wr(c.SP, uint8(c.PC>>8))
+	// Pushing the high byte can land on IE and cancel the interrupt, in
+	// which case the CPU ends up at 0x0000.
+	pending := m.IE & m.IF & 0x1F
+	c.SP--
+	m.wr(c.SP, uint8(c.PC))
+	c.PC = 0
+	for i := range 5 {
+		if pending&(1<<i) != 0 {
+			m.IF &^= 1 << i
+			c.PC = 0x40 + uint16(i)*8
+			break
+		}
+	}
+	m.tick()
+	return true
 }
 
 func (m *Machine) exec(op uint8) {
@@ -157,7 +198,26 @@ func (m *Machine) exec(op uint8) {
 	switch {
 	case op == 0x00: // NOP
 	case op == 0x76: // HALT
-		c.Halted = true
+		// With interrupts off and one already pending, HALT doesn't halt,
+		// and the CPU reads the next byte twice.
+		if !c.IME && m.IE&m.IF&0x1F != 0 {
+			c.HaltBug = true
+		} else {
+			c.Halted = true
+		}
+	case op == 0x10: // STOP
+		// A DMG with no button held stays stopped until one is pressed;
+		// nothing commercial relies on that, so this only resets DIV.
+		m.fetch()
+		m.stop()
+	case op == 0xF3: // DI
+		c.IME, c.EIPending = false, false
+	case op == 0xFB: // EI
+		c.EIPending = true
+	case op == 0xD9: // RETI
+		c.PC = m.pop()
+		m.tick()
+		c.IME = true
 	case x == 1: // LD r,r
 		m.setReg(y, m.reg(z))
 	case x == 0 && z == 6: // LD r,n

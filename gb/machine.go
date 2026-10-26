@@ -55,6 +55,9 @@ func (m *Machine) tick() {
 	m.Cycles += 4
 }
 
+// stop is what STOP does to the rest of the machine.
+func (m *Machine) stop() {}
+
 // Read returns the byte at a, without spending any time.
 func (m *Machine) Read(a uint16) uint8 {
 	switch {
