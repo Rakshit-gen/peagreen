@@ -476,6 +476,10 @@ func (p *player) status() {
 	} else if p.fast {
 		line += fmt.Sprintf("  x%d", fastSpeed)
 	}
+	if p.m.CPU.Locked {
+		// Nothing more will happen; say why, or it looks like peagreen hung.
+		line += "  the CPU hit an undefined opcode and stopped"
+	}
 	if p.m.Cart.Motor {
 		line += "  ~rumble~"
 	}
