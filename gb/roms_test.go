@@ -147,6 +147,7 @@ var mooneyePass = []string{
 	"call_timing2", "jp_cc_timing", "jp_timing", "ld_hl_sp_e_timing",
 	"oam_dma_restart", "oam_dma_timing", "push_timing", "ret_cc_timing",
 	"ret_timing", "reti_timing", "rst_timing",
+	"timer/tima_reload", "timer/tima_write_reloading", "timer/tma_write_reloading",
 }
 
 func TestMooneye(t *testing.T) {
