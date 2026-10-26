@@ -123,3 +123,15 @@ func TestMBC5Banks(t *testing.T) {
 		t.Fatalf("first byte = %#x, want 0x34 (bank number mod 256)", got)
 	}
 }
+
+func TestMBC5Rumble(t *testing.T) {
+	c := bankedCart(t, 0x1E, 8, 4)
+	c.writeROM(0x4000, 0x0B)
+	if !c.Motor || c.RAMBank != 3 {
+		t.Fatalf("motor %v, RAM bank %d; want on and 3", c.Motor, c.RAMBank)
+	}
+	c.writeROM(0x4000, 0x03)
+	if c.Motor {
+		t.Fatal("clearing bit 3 should stop the motor")
+	}
+}

@@ -32,6 +32,7 @@ type Cart struct {
 	Mode         uint8
 
 	rumble bool
+	Motor  bool // the rumble motor is running
 	multi  bool // MBC1 multicart, with bank bit 4 not wired
 
 	HasRTC bool
@@ -67,8 +68,7 @@ func NewCart(rom []byte) (*Cart, error) {
 		c.Battery = h.Type == 0x0F || h.Type == 0x10 || h.Type == 0x13
 		c.HasRTC = h.Type == 0x0F || h.Type == 0x10
 	case 0x19, 0x1A, 0x1B, 0x1C, 0x1D, 0x1E:
-		// 0x1C-0x1E have a rumble motor on RAM bank bit 3, which is
-		// ignored here apart from not counting it as a bank bit.
+		// 0x1C-0x1E have a rumble motor on RAM bank bit 3.
 		c.kind = mapMBC5
 		c.Battery = h.Type == 0x1B || h.Type == 0x1E
 		c.rumble = h.Type >= 0x1C
@@ -153,6 +153,7 @@ func (c *Cart) writeROM(a uint16, v uint8) {
 			c.RAMBank = int(v & 0x0F)
 			if c.rumble {
 				c.RAMBank &= 7
+				c.Motor = v&8 != 0
 			}
 		}
 	case mapMBC2:
