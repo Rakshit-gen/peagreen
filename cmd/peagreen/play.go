@@ -57,6 +57,7 @@ type player struct {
 	note    string // a passing message for the status line
 	noteEnd time.Time
 	shown   string // the status line as last drawn
+	slot    int    // the save state slot, 1 to 9
 	ran     int    // frames run since since, for the measured speed
 	since   time.Time
 	rate    float64 // the measured speed, against the hardware's
@@ -294,6 +295,9 @@ func (p *player) input() {
 				p.nextPalette()
 			case 'i':
 				p.screenshot()
+			case '1', '2', '3', '4', '5', '6', '7', '8', '9':
+				p.slot = int(e.Key - '0')
+				p.say("state slot %d", p.slot)
 			case ',':
 				p.saveState()
 			case '.':
@@ -391,9 +395,14 @@ func (p *player) stepBack() {
 	p.out.Write(p.r.Frame(&p.m.PPU.Screen))
 }
 
-// statePath is where the save state lives, next to the ROM.
+// statePath is where the save state in the current slot lives, next to
+// the ROM: game.state for slot 1, game-2.state and so on for the rest.
 func (p *player) statePath() string {
-	return strings.TrimSuffix(p.romPath, filepath.Ext(p.romPath)) + ".state"
+	base := strings.TrimSuffix(p.romPath, filepath.Ext(p.romPath))
+	if p.slot > 1 {
+		return fmt.Sprintf("%s-%d.state", base, p.slot)
+	}
+	return base + ".state"
 }
 
 func (p *player) saveState() {
@@ -412,13 +421,13 @@ func (p *player) saveState() {
 		p.say("couldn't save the state: %v", err)
 		return
 	}
-	p.say("state saved")
+	p.say("state %d saved", max(p.slot, 1))
 }
 
 func (p *player) loadState() {
 	f, err := os.Open(p.statePath())
 	if errors.Is(err, fs.ErrNotExist) {
-		p.say("no saved state yet; , saves one")
+		p.say("nothing in slot %d yet; , saves there", max(p.slot, 1))
 		return
 	}
 	var s *gb.State
@@ -434,7 +443,7 @@ func (p *player) loadState() {
 		return
 	}
 	p.out.Write(p.r.Frame(&p.m.PPU.Screen))
-	p.say("state loaded")
+	p.say("state %d loaded", max(p.slot, 1))
 }
 
 var helpText = []string{
@@ -448,6 +457,7 @@ var helpText = []string{
 	"tab              fast-forward",
 	"r (hold)         rewind",
 	", and .          save and load state",
+	"1 to 9           pick the state slot",
 	"c                next palette",
 	"i                screenshot",
 	"q or esc         quit",

@@ -44,3 +44,13 @@ func TestMeasure(t *testing.T) {
 		t.Fatalf("rate %.3f, ran %d; want about 2.01 and 0", p.rate, p.ran)
 	}
 }
+
+func TestStatePath(t *testing.T) {
+	p := &player{romPath: "roms/tetris.gb"}
+	for slot, want := range map[int]string{0: "roms/tetris.state", 1: "roms/tetris.state", 4: "roms/tetris-4.state"} {
+		p.slot = slot
+		if got := p.statePath(); got != want {
+			t.Errorf("slot %d: %s, want %s", slot, got, want)
+		}
+	}
+}
