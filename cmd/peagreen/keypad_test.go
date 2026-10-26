@@ -44,3 +44,16 @@ func TestKeypadKitty(t *testing.T) {
 		t.Fatal("releasing w should let go of Up only")
 	}
 }
+
+func TestKeypadOpposites(t *testing.T) {
+	for _, kitty := range []bool{false, true} {
+		k := keypad{kitty: kitty}
+		now := time.Unix(0, 0)
+		k.event(term.Event{Key: 'a'}, now)
+		k.event(term.Event{Key: 'x'}, now)
+		k.event(term.Event{Key: 'd'}, now)
+		if got := k.buttons(now); got != gb.Right|gb.A {
+			t.Fatalf("kitty %v: left then right held %08b, want right and A", kitty, got)
+		}
+	}
+}

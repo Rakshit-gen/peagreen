@@ -38,6 +38,9 @@ func (k *keypad) event(e term.Event, now time.Time) bool {
 	if !ok {
 		return false
 	}
+	if !e.Release {
+		k.lift(opposite[b])
+	}
 	if k.kitty {
 		if e.Release {
 			k.down &^= b
@@ -53,6 +56,17 @@ func (k *keypad) event(e term.Event, now time.Time) bool {
 	}
 	k.until[i] = now.Add(hold)
 	return true
+}
+
+// A real d-pad can't press left and right, or up and down, at once, and
+// some games misbehave if they read both. The newer press wins.
+var opposite = map[gb.Button]gb.Button{gb.Left: gb.Right, gb.Right: gb.Left, gb.Up: gb.Down, gb.Down: gb.Up}
+
+func (k *keypad) lift(b gb.Button) {
+	if b != 0 {
+		k.down &^= b
+		k.until[bit(b)] = time.Time{}
+	}
 }
 
 // buttons is what is held at now.
