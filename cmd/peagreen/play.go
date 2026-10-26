@@ -300,6 +300,15 @@ func (p *player) input() {
 				p.ran, p.since, p.rate = 0, time.Now(), float64(p.speed())
 			case 'm':
 				p.mute()
+			case 'g':
+				p.ghost = !p.ghost
+				p.unblend()
+				p.out.Write(p.r.Frame(p.picture()))
+				if p.ghost {
+					p.say("ghosting on")
+				} else {
+					p.say("ghosting off")
+				}
 			case 'c':
 				p.nextPalette()
 			case 'i':
@@ -514,6 +523,7 @@ var helpText = []string{
 	"1 to 9           pick the state slot",
 	"m                sound off and on",
 	"c                next palette",
+	"g                ghosting off and on",
 	"i                screenshot",
 	"q or esc         quit",
 	"",
