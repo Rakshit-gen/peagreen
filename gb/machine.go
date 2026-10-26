@@ -2,6 +2,8 @@
 // timer, video, sound, joypad and cartridge mappers.
 package gb
 
+import "io"
+
 // Interrupt bits in IE and IF.
 const (
 	IntVBlank = 1 << iota
@@ -14,8 +16,9 @@ const (
 // Machine is a whole Game Boy. Everything but the ROM and the cartridge
 // RAM lives in the struct itself, so a copy is a snapshot.
 type Machine struct {
-	CPU  CPU
-	Cart *Cart
+	CPU    CPU
+	Cart   *Cart
+	Serial Serial
 
 	WRAM [0x2000]byte
 	HRAM [0x7F]byte
@@ -24,6 +27,8 @@ type Machine struct {
 
 	// Cycles counts T-cycles (4.194304 MHz) since power on.
 	Cycles uint64
+
+	serialOut io.Writer
 }
 
 // New builds a machine with the cartridge in it, in the state the boot ROM
@@ -53,6 +58,7 @@ func (m *Machine) reset() {
 // tick advances everything but the CPU by one M-cycle (4 T-cycles).
 func (m *Machine) tick() {
 	m.Cycles += 4
+	m.serialTick()
 }
 
 // stop is what STOP does to the rest of the machine.
@@ -101,6 +107,10 @@ func (m *Machine) Write(a uint16, v uint8) {
 
 func (m *Machine) readIO(a uint16) uint8 {
 	switch a {
+	case 0xFF01:
+		return m.Serial.SB
+	case 0xFF02:
+		return m.Serial.SC | 0x7E
 	case 0xFF0F:
 		return m.IF | 0xE0
 	}
@@ -109,6 +119,10 @@ func (m *Machine) readIO(a uint16) uint8 {
 
 func (m *Machine) writeIO(a uint16, v uint8) {
 	switch a {
+	case 0xFF01:
+		m.Serial.SB = v
+	case 0xFF02:
+		m.writeSC(v)
 	case 0xFF0F:
 		m.IF = v & 0x1F
 	}
