@@ -63,3 +63,43 @@ func TestLYCFrozenWhileOff(t *testing.T) {
 		t.Fatal("the LY=LYC bit should keep its value while the LCD is off")
 	}
 }
+
+func TestAccessAsMode3Starts(t *testing.T) {
+	m, _ := New(blankROM(0, 0, 0))
+	p := &m.PPU
+	p.LCDC, p.LY, p.Dot = 0x80, 5, 76
+	p.setMode(modeOAM)
+	m.ppuTick()
+	if !m.blocked(0x8000, false) {
+		t.Error("VRAM reads should close as the PPU enters mode 3")
+	}
+	if m.blocked(0x8000, true) || m.blocked(0xFE00, true) {
+		t.Error("writes should still land in the M-cycle mode 3 starts")
+	}
+	m.ppuTick()
+	if !m.blocked(0x8000, true) || !m.blocked(0xFE00, true) {
+		t.Error("writes should be lost once STAT shows mode 3")
+	}
+	if m.blocked(0xC000, false) || m.blocked(0xC000, true) {
+		t.Error("WRAM should never be blocked by the PPU")
+	}
+}
+
+func TestDMAShutsOAMOnFirstByte(t *testing.T) {
+	m, _ := New(blankROM(0, 0, 0))
+	m.setLCDC(0)
+	m.dma(0xC0)
+	m.dmaTick() // set up
+	if m.blocked(0xFE00, false) {
+		t.Fatal("OAM should stay open until a byte is copied")
+	}
+	m.dmaTick()
+	if !m.blocked(0xFE00, false) || !m.blocked(0xFE9F, true) {
+		t.Fatal("OAM should be shut while the transfer copies")
+	}
+	m.dma(0xC0)
+	m.dmaTick()
+	if !m.blocked(0xFE00, false) {
+		t.Fatal("a restart should keep OAM shut")
+	}
+}
