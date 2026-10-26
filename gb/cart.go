@@ -31,6 +31,8 @@ type Cart struct {
 	Bank1, Bank2 uint8
 	Mode         uint8
 
+	rumble bool
+
 	HasRTC bool
 	RTC    RTC
 }
@@ -62,6 +64,12 @@ func NewCart(rom []byte) (*Cart, error) {
 		c.kind = mapMBC3
 		c.Battery = h.Type == 0x0F || h.Type == 0x10 || h.Type == 0x13
 		c.HasRTC = h.Type == 0x0F || h.Type == 0x10
+	case 0x19, 0x1A, 0x1B, 0x1C, 0x1D, 0x1E:
+		// 0x1C-0x1E have a rumble motor on RAM bank bit 3, which is
+		// ignored here apart from not counting it as a bank bit.
+		c.kind = mapMBC5
+		c.Battery = h.Type == 0x1B || h.Type == 0x1E
+		c.rumble = h.Type >= 0x1C
 	default:
 		return nil, fmt.Errorf("cartridge type 0x%02X is not supported", h.Type)
 	}
@@ -124,6 +132,21 @@ func (c *Cart) writeROM(a uint16, v uint8) {
 				c.RTC.Armed = false
 			} else {
 				c.RTC.Armed = false
+			}
+		}
+	case mapMBC5:
+		switch {
+		case a < 0x2000:
+			c.RAMOn = v&0x0F == 0x0A
+		case a < 0x3000:
+			// Unlike the others, MBC5 can map bank 0 at 0x4000.
+			c.ROMBank = c.ROMBank&0x100 | int(v)
+		case a < 0x4000:
+			c.ROMBank = c.ROMBank&0xFF | int(v&1)<<8
+		case a < 0x6000:
+			c.RAMBank = int(v & 0x0F)
+			if c.rumble {
+				c.RAMBank &= 7
 			}
 		}
 	case mapMBC2:
