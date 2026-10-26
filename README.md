@@ -1,5 +1,7 @@
 # peagreen
 
+[![ci](https://github.com/Rakshit-gen/peagreen/actions/workflows/ci.yml/badge.svg)](https://github.com/Rakshit-gen/peagreen/actions/workflows/ci.yml)
+
 A Game Boy emulator that plays in your terminal.
 
 peagreen emulates the original Game Boy (the DMG, the grey brick with the
