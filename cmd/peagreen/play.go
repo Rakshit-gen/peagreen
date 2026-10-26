@@ -41,6 +41,8 @@ type player struct {
 	r       screen.Renderer
 	out     *os.File
 	keys    <-chan term.Event
+	size    string // the -size flag, for refitting after a resize
+	small   bool   // the terminal shrank below the frame; wait for it to grow
 	pad     keypad
 	back    key // r, held to rewind
 	history *rewind
@@ -83,7 +85,7 @@ func play(args []string) error {
 	if err := loadBattery(m, fs.Arg(0)); err != nil {
 		return err
 	}
-	p := &player{m: m, romPath: fs.Arg(0), out: os.Stdout, history: newRewind(rewindSeconds * 60 / rewindEvery)}
+	p := &player{m: m, romPath: fs.Arg(0), out: os.Stdout, size: *size, history: newRewind(rewindSeconds * 60 / rewindEvery)}
 	p.bat = battery{path: savPath(fs.Arg(0)), last: append([]byte(nil), m.Cart.RAM...)}
 	p.r.Palette = pal
 	if err := p.fit(*size); err != nil {
@@ -106,8 +108,11 @@ func play(args []string) error {
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGTERM, syscall.SIGHUP, syscall.SIGINT)
 	defer signal.Stop(sigs)
+	winch := make(chan os.Signal, 1)
+	signal.Notify(winch, syscall.SIGWINCH)
+	defer signal.Stop(winch)
 	p.keys = term.Read(os.Stdin)
-	err = p.loop(sigs)
+	err = p.loop(sigs, winch)
 	// Always write the save on the way out, so a clock's time is kept.
 	p.bat.last = nil
 	if serr := p.bat.save(m); err == nil {
@@ -144,16 +149,25 @@ func (p *player) fit(size string) error {
 
 func (p *player) write(s string) { p.out.WriteString(s) }
 
-func (p *player) loop(sigs <-chan os.Signal) error {
+func (p *player) loop(sigs, winch <-chan os.Signal) error {
 	next := time.Now()
 	for frame := 0; !p.quit; frame++ {
 		select {
 		case <-sigs:
 			return nil
+		case <-winch:
+			p.write("\x1b[0m\x1b[2J")
+			p.shown = ""
+			p.small = false
+			if err := p.fit(p.size); err != nil {
+				p.small = true
+				fmt.Fprintf(p.out, "\x1b[1;1H%v", err)
+			}
 		default:
 		}
 		p.input()
 		switch {
+		case p.small:
 		case p.back.held(p.pad.kitty, time.Now()):
 			p.stepBack()
 		case !p.paused:
@@ -171,7 +185,9 @@ func (p *player) loop(sigs <-chan os.Signal) error {
 				p.say("couldn't write the save: %v", err)
 			}
 		}
-		p.status()
+		if !p.small {
+			p.status()
+		}
 		next = next.Add(framePeriod)
 		if d := time.Until(next); d > 0 {
 			time.Sleep(d)
