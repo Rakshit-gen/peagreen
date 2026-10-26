@@ -24,6 +24,7 @@ func (m *Machine) renderLine() {
 	var bg [Width]uint8
 	if p.LCDC&1 != 0 {
 		m.renderBG(&bg)
+		m.renderWindow(&bg)
 	}
 	for x := range Width {
 		p.Screen[ly][x] = shade(p.BGP, bg[x])
@@ -43,4 +44,25 @@ func (m *Machine) renderBG(bg *[Width]uint8) {
 		bx := (x + int(p.SCX)) & 255
 		bg[x] = p.tilePixel(p.VRAM[row+bx/8], bx&7, y&7, unsigned)
 	}
+}
+
+// renderWindow draws the window over the background. It has its own line
+// counter, which only moves on lines where the window actually showed.
+func (m *Machine) renderWindow(bg *[Width]uint8) {
+	p := &m.PPU
+	if p.LCDC&0x20 == 0 || !p.WinY || p.WX > 166 {
+		return
+	}
+	tileMap := 0x1800
+	if p.LCDC&0x40 != 0 {
+		tileMap = 0x1C00
+	}
+	unsigned := p.LCDC&0x10 != 0
+	y := p.WinLine
+	row := tileMap + y/8*32
+	for x := max(0, int(p.WX)-7); x < Width; x++ {
+		wx := x - (int(p.WX) - 7)
+		bg[x] = p.tilePixel(p.VRAM[row+wx/8], wx&7, y&7, unsigned)
+	}
+	p.WinLine++
 }

@@ -25,6 +25,8 @@ type PPU struct {
 	BGP, OBP0, OBP1, WY, WX       uint8
 
 	Dot      int  // dot (T-cycle) within the current line
+	WinLine  int  // the window's own line counter
+	WinY     bool // LY has matched WY this frame, so the window may show
 	StatLine bool // the STAT interrupt line, which fires on its rising edge
 
 	// Screen holds shades 0 (lightest) to 3 for the frame being drawn. It's
@@ -67,6 +69,7 @@ func (m *Machine) nextLine() {
 	switch {
 	case p.LY == 154:
 		p.LY = 0
+		p.WinLine, p.WinY = 0, false
 		p.setMode(modeOAM)
 	case p.LY == Height:
 		p.setMode(modeVBlank)
@@ -74,6 +77,9 @@ func (m *Machine) nextLine() {
 		p.Frames++
 	case p.LY < Height:
 		p.setMode(modeOAM)
+	}
+	if p.LY == p.WY {
+		p.WinY = true
 	}
 }
 
@@ -168,6 +174,7 @@ func (m *Machine) setLCDC(v uint8) {
 		p.setMode(modeHBlank)
 	case !was && on:
 		p.LY, p.Dot = 0, 0
+		p.WinLine, p.WinY = 0, p.WY == 0
 		p.setMode(modeOAM)
 	}
 }
