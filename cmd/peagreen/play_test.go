@@ -115,3 +115,21 @@ func TestWindowTitle(t *testing.T) {
 		}
 	}
 }
+
+func TestAdvanceKeepsHistory(t *testing.T) {
+	m, err := gb.New(make([]byte, 0x8000))
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := &player{m: m, history: newRewind(10)}
+	for range rewindEvery * 3 {
+		p.advance()
+	}
+	n := 0
+	for p.history.pop() != nil {
+		n++
+	}
+	if n != 3 {
+		t.Fatalf("%d states after %d frames, want 3", n, rewindEvery*3)
+	}
+}
