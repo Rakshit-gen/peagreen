@@ -25,12 +25,14 @@ type PPU struct {
 	BGP, OBP0, OBP1, WY, WX       uint8
 	DMA                           uint8
 
-	Dot      int  // dot (T-cycle) within the current line
-	WinLine  int  // the window's own line counter
-	WinY     bool // LY has matched WY this frame, so the window may show
-	StatLine bool // the STAT interrupt line, which fires on its rising edge
-	DrawEnd  int  // the dot this line's mode 3 ends on
-	ModeAt   int  // the dot the mode last changed on
+	Dot      int   // dot (T-cycle) within the current line
+	WinLine  int   // the window's own line counter
+	WinY     bool  // LY has matched WY this frame, so the window may show
+	StatLine bool  // the STAT interrupt line, which fires on its rising edge
+	DrawEnd  int   // the dot this line's mode 3 ends on
+	ModeAt   int   // when the mode last changed, as LY*456+Dot
+	PrevMode uint8 // the mode before that
+	Fresh    bool  // this is the first line since the LCD was turned on
 
 	// Screen holds shades 0 (lightest) to 3 for the frame being drawn. It's
 	// complete between the start of vblank and the start of the next frame.
@@ -42,7 +44,13 @@ const lineDots = 456
 
 func (p *PPU) mode() uint8 { return p.STAT & 3 }
 
-func (p *PPU) setMode(md uint8) { p.STAT = p.STAT&^3 | md }
+func (p *PPU) setMode(md uint8) {
+	p.PrevMode, p.ModeAt = p.mode(), p.now()
+	p.STAT = p.STAT&^3 | md
+}
+
+// now is the dot within the frame.
+func (p *PPU) now() int { return int(p.LY)*lineDots + p.Dot }
 
 func (m *Machine) ppuTick() {
 	p := &m.PPU
@@ -54,11 +62,10 @@ func (m *Machine) ppuTick() {
 		switch {
 		case p.Dot == 80:
 			p.setMode(modeDraw)
-			p.ModeAt, p.DrawEnd = p.Dot, 80+p.drawLength()
+			p.DrawEnd = 80 + p.drawLength()
 			m.renderLine()
 		case p.mode() == modeDraw && p.Dot >= p.DrawEnd:
 			p.setMode(modeHBlank)
-			p.ModeAt = p.Dot
 		}
 	}
 	if p.Dot >= lineDots {
@@ -70,6 +77,7 @@ func (m *Machine) ppuTick() {
 
 func (m *Machine) nextLine() {
 	p := &m.PPU
+	p.Fresh = false
 	p.LY++
 	switch {
 	case p.LY == 154:
@@ -154,19 +162,21 @@ func (m *Machine) updateStat() {
 }
 
 // statRead is STAT as the CPU sees it. The mode bits change one M-cycle
-// after the PPU switches mode: the switch to mode 3 or 0 raises its
-// interrupt at once, but a read in the same M-cycle still shows the old
-// mode.
+// after the PPU switches mode: the switch raises its interrupt at once,
+// but a read in the same M-cycle still shows the old mode. And in the
+// M-cycle LY changes, the LY=LYC bit reads 0 while the comparison settles.
 func (p *PPU) statRead() uint8 {
-	if p.LCDC&0x80 != 0 && p.LY < Height && p.Dot == p.ModeAt {
-		switch p.mode() {
-		case modeDraw:
-			return p.STAT&^3 | modeOAM
-		case modeHBlank:
-			return p.STAT&^3 | modeDraw
-		}
+	stat := p.STAT
+	if p.LCDC&0x80 == 0 {
+		return stat
 	}
-	return p.STAT
+	if p.now() == p.ModeAt {
+		stat = stat&^3 | p.PrevMode
+	}
+	if p.Dot == 0 {
+		stat &^= 4
+	}
+	return stat
 }
 
 func (m *Machine) ppuRead(a uint16) uint8 {
@@ -241,8 +251,9 @@ func (m *Machine) setLCDC(v uint8) {
 		p.setMode(modeHBlank)
 	case !was && on:
 		// The first line after turning on skips the OAM scan: STAT says
-		// mode 0 until drawing starts.
-		p.LY, p.Dot = 0, 0
+		// mode 0 until drawing starts. It also starts a little way in,
+		// so it ends one M-cycle early.
+		p.LY, p.Dot, p.Fresh = 0, 4, true
 		p.WinLine, p.WinY = 0, p.WY == 0
 		p.setMode(modeHBlank)
 	}
@@ -292,8 +303,16 @@ func (m *Machine) blocked(a uint16) bool {
 	}
 	// The PPU has OAM to itself while it scans it (mode 2) and while it
 	// draws (mode 3), and VRAM while it draws. The CPU reads 0xFF and its
-	// writes are lost.
-	switch m.PPU.statRead() & 3 {
+	// writes are lost. The memory closes as soon as the PPU enters mode 2
+	// or 3, a cycle before STAT shows it, and opens again only when STAT
+	// shows mode 0. The first line after the LCD is turned on runs two
+	// T-cycles late, so there it closes when STAT shows mode 3.
+	p := &m.PPU
+	md := p.statRead() & 3
+	if in := p.mode(); !p.Fresh && (in == modeOAM || in == modeDraw) {
+		md = in
+	}
+	switch md {
 	case modeOAM:
 		return a >= 0xFE00 && a < 0xFEA0
 	case modeDraw:
