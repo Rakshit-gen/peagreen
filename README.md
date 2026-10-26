@@ -162,6 +162,20 @@ cells that changed since the last frame are sent to the terminal.
 - No link cable between two games.
 - Unix terminals: Linux and macOS. Windows isn't supported.
 
+## Working on peagreen
+
+```
+make roms    # fetch the test ROMs into testdata/roms
+make test    # unit tests and the test ROMs
+make check   # gofmt, go vet and a tidy go.mod, as CI runs them
+make bench   # time one emulated frame
+```
+
+The code is in four packages: `gb` is the machine (CPU, PPU, APU, timer,
+cartridges), `screen` turns frames into terminal output and PNGs, `term`
+handles raw mode and key parsing, and `audio` writes WAV files. The
+command in `cmd/peagreen` puts them together.
+
 ## Thanks
 
 peagreen was built from public documentation and checked against other
