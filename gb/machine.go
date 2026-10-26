@@ -59,12 +59,21 @@ func (m *Machine) reset() {
 	c.H, c.L = 0x01, 0x4D
 	c.SP, c.PC = 0xFFFE, 0x0100
 	m.IF = IntVBlank
-	m.Timer.Div = 0xABCC
-	m.Joy.Select = 0x30
+	// mooneye's boot_div and boot_hwio pin down where DIV and the PPU are
+	// when the boot ROM hands over.
+	m.Timer.Div = 0xABC8
+	m.Joy.Select = 0x00
+	m.Serial.SC = 0x7E
+	// The boot ROM plays its chime on channel 1 and leaves it on, faded
+	// out, with the channels panned and the volume up.
+	a := &m.APU
+	a.On = true
+	copy(a.Regs[:], []uint8{0x00, 0x80, 0xF3, 0xC1, 0x87})
+	a.Regs[0x14], a.Regs[0x15] = 0x77, 0xF3
+	a.Ch[0] = Channel{On: true, DAC: true, Duty: 2, Freq: 0x7C1, EnvPeriod: 3}
 	p := &m.PPU
 	p.LCDC, p.BGP = 0x91, 0xFC
-	p.setMode(modeVBlank)
-	p.LY = Height
+	p.setMode(modeOAM)
 }
 
 // tick advances everything but the CPU by one M-cycle (4 T-cycles).
