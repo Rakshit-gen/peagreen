@@ -32,6 +32,7 @@ type Cart struct {
 	Mode         uint8
 
 	rumble bool
+	multi  bool // MBC1 multicart, with bank bit 4 not wired
 
 	HasRTC bool
 	RTC    RTC
@@ -57,6 +58,7 @@ func NewCart(rom []byte) (*Cart, error) {
 		c.kind = mapMBC1
 		c.Battery = h.Type == 0x03
 		c.Bank1 = 1
+		c.multi = isMulticart(rom)
 	case 0x05, 0x06:
 		c.kind = mapMBC2
 		c.Battery = h.Type == 0x06
@@ -84,7 +86,7 @@ func (c *Cart) readROM(a uint16) uint8 {
 	if a < 0x4000 {
 		bank := 0
 		if c.kind == mapMBC1 && c.Mode == 1 {
-			bank = int(c.Bank2) << 5
+			bank = int(c.Bank2) << c.bank2Shift()
 		}
 		return c.rom[(bank%c.banks)*0x4000+int(a)]
 	}
@@ -108,7 +110,11 @@ func (c *Cart) writeROM(a uint16, v uint8) {
 		default:
 			c.Mode = v & 1
 		}
-		c.ROMBank = int(c.Bank2)<<5 | int(c.Bank1)
+		if c.multi {
+			c.ROMBank = int(c.Bank2)<<4 | int(c.Bank1&0x0F)
+		} else {
+			c.ROMBank = int(c.Bank2)<<5 | int(c.Bank1)
+		}
 		c.RAMBank = 0
 		if c.Mode == 1 {
 			c.RAMBank = int(c.Bank2)
@@ -163,6 +169,20 @@ func (c *Cart) writeROM(a uint16, v uint8) {
 			}
 		}
 	}
+}
+
+func (c *Cart) bank2Shift() int {
+	if c.multi {
+		return 4
+	}
+	return 5
+}
+
+// isMulticart guesses whether an MBC1 ROM is a multicart, which wires
+// the upper bank bits one place lower. Nothing in the header says so, but
+// every game in one has its own Nintendo logo, and so does bank 0x10.
+func isMulticart(rom []byte) bool {
+	return len(rom) == 1<<20 && string(rom[0x104:0x134]) == string(rom[0x40104:0x40134])
 }
 
 // ramOn reports whether cartridge RAM answers. Mapperless carts have no
