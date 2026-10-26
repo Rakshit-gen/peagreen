@@ -56,3 +56,10 @@ func TestParseKitty(t *testing.T) {
 		t.Fatalf("got  %+v\nwant %+v", evs, want)
 	}
 }
+
+func TestParseFocus(t *testing.T) {
+	evs, _ := Parse([]byte("\x1b[O\x1b[I"))
+	if want := []Key{KeyFocusOut, KeyFocusIn}; !reflect.DeepEqual(keys(evs), want) {
+		t.Fatalf("got %v, want %v", keys(evs), want)
+	}
+}

@@ -31,6 +31,11 @@ const (
 	// KeyKitty isn't a key: it's the terminal answering that it speaks
 	// the kitty keyboard protocol.
 	KeyKitty
+
+	// KeyFocusIn and KeyFocusOut say the terminal window gained or lost
+	// focus, once focus reporting (CSI ? 1004 h) is on.
+	KeyFocusIn
+	KeyFocusOut
 )
 
 // Event is a key going down, repeating or coming up. Most terminals only
@@ -215,6 +220,10 @@ func finalKey(final byte, _ int) Key {
 		return KeyF3
 	case 'S':
 		return KeyF4
+	case 'I':
+		return KeyFocusIn
+	case 'O':
+		return KeyFocusOut
 	}
 	return KeyUnknown
 }
