@@ -70,6 +70,15 @@ func (m *Machine) tick() {
 	m.serialTick()
 }
 
+// RunFrame runs until the PPU finishes a frame, or for a frame's worth of
+// time when the LCD is off.
+func (m *Machine) RunFrame() {
+	start, limit := m.PPU.Frames, m.Cycles+70224
+	for m.PPU.Frames == start && m.Cycles < limit {
+		m.Step()
+	}
+}
+
 // stop is what STOP does to the rest of the machine.
 func (m *Machine) stop() { m.timerWrite(0xFF04, 0) }
 
