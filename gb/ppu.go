@@ -171,6 +171,3 @@ func (m *Machine) setLCDC(v uint8) {
 		p.setMode(modeOAM)
 	}
 }
-
-// renderLine draws line LY into Screen.
-func (m *Machine) renderLine() {}
