@@ -187,3 +187,39 @@ func TestMooneyeMappers(t *testing.T) {
 		})
 	}
 }
+
+// runRAM runs one of blargg's tests that report through cartridge RAM:
+// the signature DE B0 61 at 0xA001, a status at 0xA000 that's 0x80 while
+// running and 0 for a pass, and text from 0xA004.
+func runRAM(m *Machine, seconds int) (status uint8, text string) {
+	limit := m.Cycles + uint64(seconds)*cyclesPerSecond
+	ram := m.Cart.RAM
+	for m.Cycles < limit {
+		for range 10000 {
+			m.Step()
+		}
+		if len(ram) > 4 && ram[1] == 0xDE && ram[2] == 0xB0 && ram[3] == 0x61 && ram[0] != 0x80 {
+			end := bytes.IndexByte(ram[4:], 0)
+			if end < 0 {
+				end = 0
+			}
+			return ram[0], string(ram[4 : 4+end])
+		}
+	}
+	return 0xFF, "timed out"
+}
+
+func TestBlarggSound(t *testing.T) {
+	for _, name := range []string{
+		"01-registers", "02-len ctr", "04-sweep", "06-overflow on trigger",
+		"07-len sweep period sync",
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			m := loadROM(t, "blargg/dmg_sound/rom_singles/"+name+".gb")
+			if status, text := runRAM(m, 60); status != 0 {
+				t.Fatalf("status %d:\n%s", status, text)
+			}
+		})
+	}
+}
