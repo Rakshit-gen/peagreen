@@ -590,7 +590,9 @@ func (p *player) say(format string, args ...any) {
 // status draws the line under the frame, when it changed.
 func (p *player) status() {
 	line := p.m.Cart.Header.Title
-	if p.paused {
+	if p.away {
+		line += "  paused while you're away"
+	} else if p.paused {
 		line += "  paused"
 	} else if p.fast {
 		// What it reaches, which a slow machine can keep under fastSpeed.
