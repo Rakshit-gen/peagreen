@@ -128,22 +128,25 @@ func (p *PPU) drawLength() int {
 // while none was on before.
 func (m *Machine) updateStat() {
 	p := &m.PPU
+	// With the LCD off the comparison clock stops: the LY=LYC bit keeps
+	// its last value, and so does the interrupt line, so turning the LCD
+	// back on only interrupts if the line then rises.
+	if p.LCDC&0x80 == 0 {
+		return
+	}
 	if p.LY == p.LYC {
 		p.STAT |= 4
 	} else {
 		p.STAT &^= 4
 	}
 	md := p.mode()
-	line := p.STAT&0x40 != 0 && p.LY == p.LYC ||
+	line := p.STAT&0x44 == 0x44 ||
 		p.STAT&0x20 != 0 && md == modeOAM ||
 		// The OAM source fires once more as vblank starts, as if line
 		// 144 began with a mode 2 like the others.
 		p.STAT&0x20 != 0 && p.LY == Height && p.Dot < 4 ||
 		p.STAT&0x10 != 0 && md == modeVBlank ||
 		p.STAT&0x08 != 0 && md == modeHBlank
-	if p.LCDC&0x80 == 0 {
-		line = false
-	}
 	if line && !p.StatLine {
 		m.IF |= IntSTAT
 	}
@@ -237,9 +240,11 @@ func (m *Machine) setLCDC(v uint8) {
 		p.LY, p.Dot = 0, 0
 		p.setMode(modeHBlank)
 	case !was && on:
+		// The first line after turning on skips the OAM scan: STAT says
+		// mode 0 until drawing starts.
 		p.LY, p.Dot = 0, 0
 		p.WinLine, p.WinY = 0, p.WY == 0
-		p.setMode(modeOAM)
+		p.setMode(modeHBlank)
 	}
 }
 
