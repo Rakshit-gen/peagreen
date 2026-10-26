@@ -2,6 +2,8 @@ package gb
 
 import (
 	"bytes"
+	"image/color"
+	"image/png"
 	"os"
 	"path/filepath"
 	"strings"
@@ -74,5 +76,39 @@ func TestBlarggTiming(t *testing.T) {
 				t.Fatalf("serial said:\n%s", out)
 			}
 		})
+	}
+}
+
+// TestAcid2 compares the screen after dmg-acid2 has drawn its face with
+// the reference picture from the test's author.
+func TestAcid2(t *testing.T) {
+	m := loadROM(t, "dmg-acid2.gb")
+	f, err := os.Open(filepath.Join(romDir, "dmg-acid2.png"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	ref, err := png.Decode(f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for range 60 {
+		m.RunFrame()
+	}
+	bad := 0
+	for y := range Height {
+		for x := range Width {
+			g := color.GrayModel.Convert(ref.At(x, y)).(color.Gray).Y
+			want := uint8(3 - (int(g)+42)/85)
+			if m.PPU.Screen[y][x] != want {
+				if bad < 10 {
+					t.Errorf("(%d,%d): shade %d, want %d", x, y, m.PPU.Screen[y][x], want)
+				}
+				bad++
+			}
+		}
+	}
+	if bad > 0 {
+		t.Fatalf("%d pixels differ", bad)
 	}
 }
