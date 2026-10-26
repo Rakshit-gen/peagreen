@@ -112,3 +112,51 @@ func TestAcid2(t *testing.T) {
 		t.Fatalf("%d pixels differ", bad)
 	}
 }
+
+// mooneye reports through registers: after LD B,B, a pass leaves the
+// Fibonacci numbers 3 5 8 13 21 34 in B-L, and a failure leaves 0x42.
+func runMooneye(m *Machine, seconds int) (passed, done bool) {
+	limit := m.Cycles + uint64(seconds)*cyclesPerSecond
+	for m.Cycles < limit {
+		m.Step()
+		c := &m.CPU
+		if c.B == 3 && c.C == 5 && c.D == 8 && c.E == 13 && c.H == 21 && c.L == 34 {
+			return true, true
+		}
+		if c.B == 0x42 && c.C == 0x42 && c.D == 0x42 && c.E == 0x42 && c.H == 0x42 && c.L == 0x42 {
+			return false, true
+		}
+	}
+	return false, false
+}
+
+// mooneyePass lists the acceptance tests that pass. Tests for other models
+// (dmg0, mgb, sgb, cgb) are left out: this is a DMG ABC.
+var mooneyePass = []string{
+	"bits/mem_oam", "bits/reg_f", "bits/unused_hwio-GS", "boot_regs-dmgABC",
+	"di_timing-GS", "div_timing", "ei_sequence", "ei_timing", "halt_ime0_ei",
+	"halt_ime0_nointr_timing", "halt_ime1_timing", "halt_ime1_timing2-GS",
+	"if_ie_registers", "instr/daa", "interrupts/ie_push", "intr_timing",
+	"oam_dma/basic", "oam_dma/reg_read", "oam_dma/sources-GS", "pop_timing",
+	"ppu/intr_1_2_timing-GS", "ppu/intr_2_0_timing", "ppu/stat_irq_blocking",
+	"rapid_di_ei", "reti_intr_timing", "timer/div_write", "timer/rapid_toggle",
+	"timer/tim00", "timer/tim00_div_trigger", "timer/tim01", "timer/tim01_div_trigger",
+	"timer/tim10", "timer/tim10_div_trigger", "timer/tim11", "timer/tim11_div_trigger",
+}
+
+func TestMooneye(t *testing.T) {
+	for _, name := range mooneyePass {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			m := loadROM(t, "mooneye/acceptance/"+name+".gb")
+			passed, done := runMooneye(m, 10)
+			if !done {
+				t.Fatal("never finished")
+			}
+			if !passed {
+				t.Fatalf("failed: A=%02X B=%02X C=%02X D=%02X E=%02X H=%02X L=%02X",
+					m.CPU.A, m.CPU.B, m.CPU.C, m.CPU.D, m.CPU.E, m.CPU.H, m.CPU.L)
+			}
+		})
+	}
+}
