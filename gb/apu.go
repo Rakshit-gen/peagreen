@@ -155,11 +155,34 @@ func (a *APU) write(addr uint16, v uint8) {
 		if n != 3 {
 			c.Freq = c.Freq&0xFF | uint16(v&7)<<8
 		}
+		// In the first half of a length period (the next sequencer step
+		// won't clock length), turning length on clocks it once at once,
+		// and a trigger that reloads it to the maximum takes one off.
+		firstHalf := a.Seq&1 == 1
+		was := c.LenOn
 		c.LenOn = v&0x40 != 0
+		if !was && c.LenOn && firstHalf && c.Length > 0 {
+			if c.Length--; c.Length == 0 && v&0x80 == 0 {
+				c.On = false
+			}
+		}
 		if v&0x80 != 0 {
+			if c.Length == 0 {
+				c.Length = lengthMax(n)
+				if c.LenOn && firstHalf {
+					c.Length--
+				}
+			}
 			a.trigger(n)
 		}
 	}
+}
+
+func lengthMax(n int) int {
+	if n == 2 {
+		return 256
+	}
+	return 64
 }
 
 // trigger restarts channel n.
@@ -167,10 +190,7 @@ func (a *APU) trigger(n int) {
 	c := &a.Ch[n]
 	c.On = c.DAC
 	if c.Length == 0 {
-		c.Length = 64
-		if n == 2 {
-			c.Length = 256
-		}
+		c.Length = lengthMax(n)
 	}
 	c.Timer = a.period(n)
 	nrx2 := a.Regs[n*5+2]

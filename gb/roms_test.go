@@ -211,7 +211,7 @@ func runRAM(m *Machine, seconds int) (status uint8, text string) {
 
 func TestBlarggSound(t *testing.T) {
 	for _, name := range []string{
-		"01-registers", "02-len ctr", "04-sweep", "06-overflow on trigger",
+		"01-registers", "02-len ctr", "03-trigger", "04-sweep", "06-overflow on trigger",
 		"07-len sweep period sync",
 	} {
 		t.Run(name, func(t *testing.T) {
