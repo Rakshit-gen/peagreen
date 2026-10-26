@@ -169,6 +169,8 @@ func (p *player) input() {
 				p.paused = !p.paused
 			case term.KeyTab:
 				p.fast = !p.fast
+			case 'c':
+				p.nextPalette()
 			}
 		default:
 			return
@@ -181,6 +183,20 @@ func (p *player) speed() int {
 		return fastSpeed
 	}
 	return 1
+}
+
+// nextPalette switches to the next built-in palette and redraws.
+func (p *player) nextPalette() {
+	i := 0
+	for j, pal := range screen.Palettes {
+		if pal.Name == p.r.Palette.Name {
+			i = j + 1
+		}
+	}
+	p.r.Palette = screen.Palettes[i%len(screen.Palettes)]
+	p.r.Invalidate()
+	p.out.Write(p.r.Frame(&p.m.PPU.Screen))
+	p.say("palette %s", p.r.Palette.Name)
 }
 
 // say shows a message on the status line for a few seconds.
