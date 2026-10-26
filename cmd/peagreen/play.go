@@ -171,6 +171,11 @@ func (p *player) fit(size string) error {
 	if err != nil {
 		return err
 	}
+	return p.layout(size, cols, rows)
+}
+
+// layout fits the frame and status line into cols x rows.
+func (p *player) layout(size string, cols, rows int) error {
 	switch size {
 	case "full":
 		p.r.Half = false
