@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/Rakshit-gen/peagreen/audio"
 	"github.com/Rakshit-gen/peagreen/gb"
 	"github.com/Rakshit-gen/peagreen/screen"
 	"github.com/Rakshit-gen/peagreen/term"
@@ -47,6 +48,7 @@ type player struct {
 	back    key // r, held to rewind
 	history *rewind
 	bat     battery
+	wav     *audio.WAV
 	quit    bool
 	paused  bool
 	fast    bool // run fastSpeed frames for each one shown
@@ -59,6 +61,7 @@ func play(args []string) error {
 	fs := flag.NewFlagSet("play", flag.ContinueOnError)
 	palName := fs.String("palette", "green", "palette: green, pocket, gray or amber")
 	size := fs.String("size", "auto", "full (160x72 cells), half (80x36) or auto")
+	wavPath := fs.String("wav", "", "record the sound to this WAV file")
 	fs.Usage = func() {
 		fmt.Fprintln(fs.Output(), "usage: peagreen play [flags] game.gb")
 		fs.PrintDefaults()
@@ -90,6 +93,22 @@ func play(args []string) error {
 	p.r.Palette = pal
 	if err := p.fit(*size); err != nil {
 		return err
+	}
+	if *wavPath != "" {
+		f, err := os.Create(*wavPath)
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+		m.EnableAudio(48000)
+		if p.wav, err = audio.NewWAV(f, 48000); err != nil {
+			return err
+		}
+		defer func() {
+			if err := p.wav.Close(); err != nil {
+				fmt.Fprintln(os.Stderr, "peagreen: finishing the WAV:", err)
+			}
+		}()
 	}
 	restore, err := term.MakeRaw(in)
 	if err != nil {
@@ -177,6 +196,7 @@ func (p *player) loop(sigs, winch <-chan os.Signal) error {
 					p.history.push(p.m.Save())
 				}
 				p.m.RunFrame()
+				p.sound()
 			}
 			p.out.Write(p.r.Frame(&p.m.PPU.Screen))
 		}
@@ -286,6 +306,17 @@ func (p *player) screenshot() {
 		}
 		p.say("saved %s", filepath.Base(path))
 		return
+	}
+}
+
+// sound passes on the samples of the frame just run.
+func (p *player) sound() {
+	samples := p.m.Audio()
+	if p.wav != nil {
+		if err := p.wav.Write(samples); err != nil {
+			p.say("recording stopped: %v", err)
+			p.wav = nil
+		}
 	}
 }
 
