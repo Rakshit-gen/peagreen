@@ -89,3 +89,30 @@ peagreen play [flags] game.gb
 `-ghost` matters for games that flicker sprites on alternate frames to
 get past the limit of ten per line. On the real screen, which is slow to
 change, those sprites look solid; without it they blink.
+
+## Sound
+
+Go's standard library has no way to reach a sound card, so peagreen pipes
+its sound into the first of these it finds: `ffplay` (from ffmpeg), sox's
+`play`, `pacat` (PulseAudio and PipeWire) or `aplay` (ALSA). On macOS,
+`brew install ffmpeg` or `brew install sox` gives you one. Without any of
+them the game plays silently and says why on the status line.
+
+If the player falls behind, peagreen drops sound rather than slowing the
+game down. Fast-forward is silent.
+
+## Scripting
+
+`peagreen run` runs a game without a screen, for tests, screenshots and
+recordings:
+
+```
+peagreen run -frames 300 -press "start@60,a@120+10" -png title.png game.gb
+peagreen run -frames 5000 -serial -until Passed cpu_instrs.gb
+```
+
+`-press` holds buttons from a frame for a number of frames (5 if left
+out), and `-until` stops as soon as the link port output contains the
+text, failing if it never does. `-wav` records the sound.
+
+`peagreen info game.gb` prints what the cartridge header says.
