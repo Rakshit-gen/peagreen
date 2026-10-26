@@ -248,3 +248,15 @@ func TestBlarggSound(t *testing.T) {
 		})
 	}
 }
+
+func TestBlarggOAMBug(t *testing.T) {
+	for _, name := range []string{"1-lcd_sync", "3-non_causes", "6-timing_no_bug"} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			m := loadROM(t, "blargg/oam_bug/rom_singles/"+name+".gb")
+			if status, text := runRAM(m, 60); status != 0 {
+				t.Fatalf("status %d:\n%s", status, text)
+			}
+		})
+	}
+}
