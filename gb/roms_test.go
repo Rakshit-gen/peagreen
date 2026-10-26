@@ -142,6 +142,11 @@ var mooneyePass = []string{
 	"rapid_di_ei", "reti_intr_timing", "timer/div_write", "timer/rapid_toggle",
 	"timer/tim00", "timer/tim00_div_trigger", "timer/tim01", "timer/tim01_div_trigger",
 	"timer/tim10", "timer/tim10_div_trigger", "timer/tim11", "timer/tim11_div_trigger",
+	// These time instructions by racing them against OAM DMA.
+	"add_sp_e_timing", "call_cc_timing", "call_cc_timing2", "call_timing",
+	"call_timing2", "jp_cc_timing", "jp_timing", "ld_hl_sp_e_timing",
+	"oam_dma_restart", "oam_dma_timing", "push_timing", "ret_cc_timing",
+	"ret_timing", "reti_timing", "rst_timing",
 }
 
 func TestMooneye(t *testing.T) {
