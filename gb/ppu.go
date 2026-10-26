@@ -236,8 +236,8 @@ func (m *Machine) dmaTick() {
 	}
 }
 
-// blocked reports whether a running DMA holds OAM, which the CPU then
-// reads as 0xFF and can't write.
+// blocked reports whether the CPU is shut out of address a, by a running
+// DMA or by the PPU.
 func (m *Machine) blocked(a uint16) bool {
 	if a >= 0xFE00 && a < 0xFF00 && m.DMAState.Active {
 		return true
