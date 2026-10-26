@@ -53,4 +53,3 @@ func main() {
 }
 
 func play(args []string) error { return fmt.Errorf("play isn't written yet") }
-func run(args []string) error  { return fmt.Errorf("run isn't written yet") }
