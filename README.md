@@ -159,3 +159,22 @@ cells that changed since the last frame are sent to the terminal.
 - blargg's `oam_bug` test 7 (`7-timing_effect`) doesn't pass yet.
 - No link cable between two games.
 - Unix terminals: Linux and macOS. Windows isn't supported.
+
+## Thanks
+
+peagreen was built from public documentation and checked against other
+people's test ROMs. None of the ROMs are in this repository; `make roms`
+fetches them from their authors' releases.
+
+- The [Pan Docs](https://gbdev.io/pandocs/), the community's reference for
+  the hardware, including the OAM bug's corruption patterns.
+- Shay Green (blargg), for the `cpu_instrs`, `instr_timing`, `mem_timing`,
+  `dmg_sound` and `oam_bug` test ROMs.
+- Matt Currie, for [dmg-acid2](https://github.com/mattcurrie/dmg-acid2) (MIT).
+- Joonas Javanainen (Gekkio), for the
+  [mooneye test suite](https://github.com/Gekkio/mooneye-test-suite) (MIT),
+  whose test sources explain a good deal of the timing.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
