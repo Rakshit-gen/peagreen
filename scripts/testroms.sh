@@ -33,6 +33,9 @@ fetch https://raw.githubusercontent.com/mattcurrie/dmg-acid2/8a98ce731f96dde032f
 # Gekkio's mooneye test suite, prebuilt
 fetch https://gekkio.fi/files/mooneye-test-suite/mts-20240926-1737-443f6e1/mts-20240926-1737-443f6e1.zip \
 	mooneye.zip 5cf50314cd3d42ec8f423b0a71b9ab6dbfad2386d8d88f03687af1b5b5baba71
+# the picture mooneye's manual-only sprite_priority should show
+fetch https://raw.githubusercontent.com/Gekkio/mooneye-test-suite/31510e12eea6286d36eea060a6adde755e1067aa/manual-only/sprite_priority-expected.png \
+	sprite_priority.png e08708fd0e5fc7df8650314707ec0ce0c929b969f2e19b6f2860c1e82828e9a0
 
 [ -d blargg ] || { unzip -q blargg.zip && mv gb-test-roms-* blargg; }
 [ -d mooneye ] || { unzip -q mooneye.zip && mv mts-* mooneye; }

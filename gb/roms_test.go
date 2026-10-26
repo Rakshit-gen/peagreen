@@ -83,7 +83,26 @@ func TestBlarggTiming(t *testing.T) {
 // the reference picture from the test's author.
 func TestAcid2(t *testing.T) {
 	m := loadROM(t, "dmg-acid2.gb")
-	f, err := os.Open(filepath.Join(romDir, "dmg-acid2.png"))
+	for range 60 {
+		m.RunFrame()
+	}
+	matchPNG(t, m, "dmg-acid2.png")
+}
+
+// TestSpritePriority checks mooneye's sprite_priority, which has no pass or
+// fail of its own, against the picture it should show.
+func TestSpritePriority(t *testing.T) {
+	m := loadROM(t, "mooneye/manual-only/sprite_priority.gb")
+	for range 60 {
+		m.RunFrame()
+	}
+	matchPNG(t, m, "sprite_priority.png")
+}
+
+// matchPNG compares the screen with a greyscale reference picture.
+func matchPNG(t *testing.T, m *Machine, name string) {
+	t.Helper()
+	f, err := os.Open(filepath.Join(romDir, name))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -91,9 +110,6 @@ func TestAcid2(t *testing.T) {
 	ref, err := png.Decode(f)
 	if err != nil {
 		t.Fatal(err)
-	}
-	for range 60 {
-		m.RunFrame()
 	}
 	bad := 0
 	for y := range Height {
