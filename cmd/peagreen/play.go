@@ -442,7 +442,7 @@ func (p *player) screenshot() {
 			continue
 		}
 		if err == nil {
-			err = screen.WritePNG(f, &p.m.PPU.Screen, p.r.Palette, 3)
+			err = screen.WritePNG(f, p.picture(), p.r.Palette, 3) // what's shown, ghosting and all
 			if cerr := f.Close(); err == nil {
 				err = cerr
 			}
