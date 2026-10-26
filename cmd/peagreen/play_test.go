@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/Rakshit-gen/peagreen/gb"
+	"github.com/Rakshit-gen/peagreen/screen"
 )
 
 func TestLayout(t *testing.T) {
@@ -91,5 +92,18 @@ func TestFocusPause(t *testing.T) {
 	p.focus(true)
 	if !p.paused {
 		t.Fatal("a game paused by hand should stay paused")
+	}
+}
+
+func TestHelpFitsHalfSize(t *testing.T) {
+	r := screen.Renderer{Half: true}
+	cols, rows := r.Size()
+	if len(helpText)+2 > rows {
+		t.Errorf("%d lines of help, the half size frame has %d rows", len(helpText), rows)
+	}
+	for _, l := range helpText {
+		if len(l)+4 > cols {
+			t.Errorf("%q is too wide for %d columns", l, cols)
+		}
 	}
 }
