@@ -64,9 +64,13 @@ func play(args []string) error {
 	if err != nil {
 		return err
 	}
-	// Alternate screen, cursor hidden; all undone on the way out.
-	p.write("\x1b[?1049h\x1b[?25l\x1b[2J")
+	// Alternate screen, cursor hidden, and a question for the terminal:
+	// does it speak the kitty keyboard protocol? All undone on the way out.
+	p.write("\x1b[?1049h\x1b[?25l\x1b[2J\x1b[?u")
 	defer func() {
+		if p.pad.kitty {
+			p.write("\x1b[<u")
+		}
 		p.write("\x1b[0m\x1b[2J\x1b[?25h\x1b[?1049l")
 		restore()
 	}()
@@ -135,6 +139,13 @@ func (p *player) input() {
 			if !ok {
 				p.quit = true
 				return
+			}
+			if e.Key == term.KeyKitty && !p.pad.kitty {
+				// It does. Ask for key releases, and for every key as an
+				// escape code so releases come for letters too.
+				p.pad.kitty = true
+				p.write("\x1b[>11u")
+				continue
 			}
 			if e.Release || p.pad.event(e, time.Now()) {
 				continue
