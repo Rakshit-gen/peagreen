@@ -52,6 +52,7 @@ type player struct {
 	spk     *speaker
 	quit    bool
 	paused  bool
+	step    bool // run one frame while paused
 	away    bool // paused because the terminal lost focus
 	stay    bool // the -autopause flag
 	help    bool // the key list is up, and the game waits
@@ -254,16 +255,13 @@ func (p *player) loop(sigs, winch <-chan os.Signal) error {
 		case p.back.held(p.pad.kitty, time.Now()):
 			p.stepBack()
 		case !p.paused:
-			p.m.SetButtons(p.pad.buttons(time.Now()))
 			for range p.speed() {
-				if p.m.PPU.Frames%rewindEvery == 0 {
-					p.history.push(p.m.Save())
-				}
-				p.m.RunFrame()
-				p.blend()
-				p.sound()
-				p.ran++
+				p.advance()
 			}
+			p.out.Write(p.r.Frame(p.picture()))
+		case p.step:
+			p.step = false
+			p.advance()
 			p.out.Write(p.r.Frame(p.picture()))
 		}
 		if frame%saveEvery == 0 {
@@ -319,6 +317,12 @@ func (p *player) input() {
 				p.toggleHelp()
 			case 'p':
 				p.paused, p.away = !p.paused, false
+			case 'n':
+				if p.paused {
+					p.step = true
+				} else {
+					p.say("n steps a frame while paused")
+				}
 			case term.KeyTab:
 				p.fast = !p.fast
 				// Start measuring afresh, showing the aim until then.
@@ -350,6 +354,18 @@ func (p *player) input() {
 			return
 		}
 	}
+}
+
+// advance runs one frame, with the buttons held now.
+func (p *player) advance() {
+	p.m.SetButtons(p.pad.buttons(time.Now()))
+	if p.m.PPU.Frames%rewindEvery == 0 {
+		p.history.push(p.m.Save())
+	}
+	p.m.RunFrame()
+	p.blend()
+	p.sound()
+	p.ran++
 }
 
 // measure works out, about once a second, how fast the game really ran.
@@ -558,6 +574,7 @@ var helpText = []string{
 	"backspace        Select",
 	"",
 	"p                pause",
+	"n                one frame, while paused",
 	"tab              fast-forward",
 	"r (hold)         rewind",
 	", and .          save and load state",
