@@ -43,6 +43,7 @@ Releases are built for Linux and macOS, on amd64 and arm64.
 | Key | peagreen |
 | --- | --- |
 | p | pause |
+| n | one frame, while paused |
 | Tab | fast-forward (4x) |
 | r, held | rewind, up to 30 seconds |
 | `,` and `.` | save and load a state |
