@@ -54,8 +54,11 @@ type player struct {
 	paused  bool
 	help    bool // the key list is up, and the game waits
 	muted   bool
-	fast    bool   // run fastSpeed frames for each one shown
-	note    string // a passing message for the status line
+	ghost   bool                       // the -ghost flag
+	last    [gb.Height][gb.Width]uint8 // the frame before, for -ghost
+	view    [gb.Height][gb.Width]uint8 // what -ghost shows
+	fast    bool                       // run fastSpeed frames for each one shown
+	note    string                     // a passing message for the status line
 	noteEnd time.Time
 	shown   string // the status line as last drawn
 	slot    int    // the save state slot, 1 to 9
@@ -70,6 +73,7 @@ func play(args []string) error {
 	size := fs.String("size", "auto", "full (160x72 cells), half (80x36) or auto")
 	wavPath := fs.String("wav", "", "record the sound to this WAV file")
 	colors := fs.String("colors", "auto", "24bit, 256, or auto to go by $COLORTERM")
+	ghost := fs.Bool("ghost", false, "blend each frame with the one before, like the DMG's slow screen")
 	sound := fs.Bool("sound", true, "play sound through ffplay, sox, pacat or aplay")
 	fs.Usage = func() {
 		fmt.Fprintln(fs.Output(), "usage: peagreen play [flags] game.gb")
@@ -100,6 +104,7 @@ func play(args []string) error {
 	p := &player{m: m, romPath: fs.Arg(0), out: os.Stdout, size: *size, history: newRewind(rewindSeconds * 60 / rewindEvery)}
 	p.bat = battery{path: savPath(fs.Arg(0)), last: append([]byte(nil), m.Cart.RAM...)}
 	p.r.Palette = pal
+	p.ghost = *ghost
 	switch *colors {
 	case "auto":
 		// Terminals with 24-bit colour say so in COLORTERM; the rest get
@@ -218,7 +223,7 @@ func (p *player) loop(sigs, winch <-chan os.Signal) error {
 				fmt.Fprintf(p.out, "\x1b[1;1H%v", err)
 			} else {
 				// Redraw now: a paused game draws nothing by itself.
-				p.out.Write(p.r.Frame(&p.m.PPU.Screen))
+				p.out.Write(p.r.Frame(p.picture()))
 			}
 		default:
 		}
@@ -234,10 +239,11 @@ func (p *player) loop(sigs, winch <-chan os.Signal) error {
 					p.history.push(p.m.Save())
 				}
 				p.m.RunFrame()
+				p.blend()
 				p.sound()
 				p.ran++
 			}
-			p.out.Write(p.r.Frame(&p.m.PPU.Screen))
+			p.out.Write(p.r.Frame(p.picture()))
 		}
 		if frame%saveEvery == 0 {
 			if err := p.bat.save(p.m); err != nil {
@@ -355,7 +361,7 @@ func (p *player) nextPalette() {
 	}
 	p.r.Palette = screen.Palettes[i%len(screen.Palettes)]
 	p.r.Invalidate()
-	p.out.Write(p.r.Frame(&p.m.PPU.Screen))
+	p.out.Write(p.r.Frame(p.picture()))
 	p.say("palette %s", p.r.Palette.Name)
 }
 
@@ -398,6 +404,35 @@ func (p *player) sound() {
 	}
 }
 
+// picture is the frame to draw: the screen, or with -ghost the screen
+// blended with the frame before.
+func (p *player) picture() *[gb.Height][gb.Width]uint8 {
+	if p.ghost {
+		return &p.view
+	}
+	return &p.m.PPU.Screen
+}
+
+// blend makes each pixel of the view the darker of the frame just run and
+// the one before. The DMG's screen is slow to change, and games count on
+// it: sprites flickered on and off every other frame look solid, a little
+// faded, on the hardware. Taking the darker shade is what keeps them.
+func (p *player) blend() {
+	if !p.ghost {
+		return
+	}
+	cur := &p.m.PPU.Screen
+	for y := range cur {
+		for x, v := range cur[y] {
+			p.view[y][x] = max(v, p.last[y][x])
+		}
+	}
+	p.last = *cur
+}
+
+// unblend shows the screen as it is, after a jump to another state.
+func (p *player) unblend() { p.last, p.view = p.m.PPU.Screen, p.m.PPU.Screen }
+
 // stepBack goes back to the newest state in the history.
 func (p *player) stepBack() {
 	s := p.history.pop()
@@ -409,7 +444,8 @@ func (p *player) stepBack() {
 		p.say("rewind: %v", err)
 		return
 	}
-	p.out.Write(p.r.Frame(&p.m.PPU.Screen))
+	p.unblend()
+	p.out.Write(p.r.Frame(p.picture()))
 }
 
 // statePath is where the save state in the current slot lives, next to
@@ -459,7 +495,8 @@ func (p *player) loadState() {
 		p.say("couldn't load the state: %v", err)
 		return
 	}
-	p.out.Write(p.r.Frame(&p.m.PPU.Screen))
+	p.unblend()
+	p.out.Write(p.r.Frame(p.picture()))
 	p.say("state %d loaded", max(p.slot, 1))
 }
 
@@ -488,7 +525,7 @@ func (p *player) toggleHelp() {
 	p.help = !p.help
 	if !p.help {
 		p.r.Invalidate()
-		p.out.Write(p.r.Frame(&p.m.PPU.Screen))
+		p.out.Write(p.r.Frame(p.picture()))
 		return
 	}
 	cols, rows := p.r.Size()

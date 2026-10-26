@@ -4,6 +4,8 @@ import (
 	"math"
 	"testing"
 	"time"
+
+	"github.com/Rakshit-gen/peagreen/gb"
 )
 
 func TestLayout(t *testing.T) {
@@ -52,5 +54,24 @@ func TestStatePath(t *testing.T) {
 		if got := p.statePath(); got != want {
 			t.Errorf("slot %d: %s, want %s", slot, got, want)
 		}
+	}
+}
+
+func TestBlend(t *testing.T) {
+	m, err := gb.New(make([]byte, 0x8000))
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := &player{m: m, ghost: true}
+	m.PPU.Screen[0][0] = 3
+	p.blend()
+	m.PPU.Screen[0][0] = 0 // a sprite flickered off
+	p.blend()
+	if p.picture()[0][0] != 3 {
+		t.Fatal("a pixel dark in the frame before should stay dark")
+	}
+	p.blend()
+	if p.picture()[0][0] != 0 {
+		t.Fatal("two frames on, it should have faded")
 	}
 }
