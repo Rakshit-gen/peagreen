@@ -107,3 +107,11 @@ func TestHelpFitsHalfSize(t *testing.T) {
 		}
 	}
 }
+
+func TestWindowTitle(t *testing.T) {
+	for in, want := range map[string]string{"TETRIS": "TETRIS - peagreen", "": "peagreen", "A\x07\x1bB": "AB - peagreen"} {
+		if got := windowTitle(in); got != want {
+			t.Errorf("windowTitle(%q) = %q, want %q", in, got, want)
+		}
+	}
+}

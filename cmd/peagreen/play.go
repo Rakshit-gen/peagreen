@@ -153,15 +153,16 @@ func play(args []string) error {
 	if err != nil {
 		return err
 	}
-	// Alternate screen, cursor hidden, focus reports on, and a question
-	// for the terminal: does it speak the kitty keyboard protocol? All
-	// undone on the way out.
-	p.write("\x1b[?1049h\x1b[?25l\x1b[2J\x1b[?1004h\x1b[?u")
+	// Alternate screen, cursor hidden, focus reports on, the old window
+	// title saved and the game's put up, and a question for the terminal:
+	// does it speak the kitty keyboard protocol? All undone on the way out.
+	p.write("\x1b[?1049h\x1b[?25l\x1b[2J\x1b[?1004h\x1b[22;0t")
+	fmt.Fprintf(p.out, "\x1b]0;%s\x07\x1b[?u", windowTitle(m.Cart.Header.Title))
 	defer func() {
 		if p.pad.kitty {
 			p.write("\x1b[<u")
 		}
-		p.write("\x1b[0m\x1b[2J\x1b[?1004l\x1b[?25h\x1b[?1049l")
+		p.write("\x1b[0m\x1b[2J\x1b[?1004l\x1b[23;0t\x1b[?25h\x1b[?1049l")
 		restore()
 	}()
 	sigs := make(chan os.Signal, 1)
@@ -178,6 +179,21 @@ func play(args []string) error {
 		err = serr
 	}
 	return err
+}
+
+// windowTitle is the terminal title for a game, with anything that could
+// end the escape sequence early taken out.
+func windowTitle(game string) string {
+	clean := strings.Map(func(r rune) rune {
+		if r < 0x20 || r == 0x7F {
+			return -1
+		}
+		return r
+	}, game)
+	if clean == "" {
+		return "peagreen"
+	}
+	return clean + " - peagreen"
 }
 
 // fit picks the frame size for the terminal and centres the frame.
