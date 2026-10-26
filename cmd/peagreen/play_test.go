@@ -2,6 +2,8 @@ package main
 
 import (
 	"math"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -131,5 +133,22 @@ func TestAdvanceKeepsHistory(t *testing.T) {
 	}
 	if n != 3 {
 		t.Fatalf("%d states after %d frames, want 3", n, rewindEvery*3)
+	}
+}
+
+func TestScreenshotNumbers(t *testing.T) {
+	m, err := gb.New(make([]byte, 0x8000))
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	p := &player{m: m, romPath: filepath.Join(dir, "game.gb")}
+	p.r.Palette = screen.Palettes[0]
+	p.screenshot()
+	p.screenshot()
+	for _, name := range []string{"game-1.png", "game-2.png"} {
+		if _, err := os.Stat(filepath.Join(dir, name)); err != nil {
+			t.Errorf("%s: %v (status says %q)", name, err, p.note)
+		}
 	}
 }
