@@ -188,10 +188,13 @@ func (p *player) loop(sigs, winch <-chan os.Signal) error {
 		case <-winch:
 			p.write("\x1b[0m\x1b[2J")
 			p.shown = ""
-			p.small = false
+			p.small, p.help = false, false
 			if err := p.fit(p.size); err != nil {
 				p.small = true
 				fmt.Fprintf(p.out, "\x1b[1;1H%v", err)
+			} else {
+				// Redraw now: a paused game draws nothing by itself.
+				p.out.Write(p.r.Frame(&p.m.PPU.Screen))
 			}
 		default:
 		}
