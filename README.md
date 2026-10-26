@@ -78,13 +78,13 @@ draws it at half size, 80 by 36, and it refits when the window changes.
 ```
 peagreen play [flags] game.gb
 
-  -palette  green, pocket, gray or amber (default green)
-  -size     full, half or auto (default auto)
-  -colors   24bit, 256, or auto to go by $COLORTERM (default auto)
-  -sound    play sound (default true)
-  -ghost    blend each frame with the one before, like the DMG's slow screen
+  -palette    green, pocket, gray or amber (default green)
+  -size       full, half or auto (default auto)
+  -colors     24bit, 256, or auto to go by $COLORTERM (default auto)
+  -sound      play sound (default true)
+  -ghost      blend each frame with the one before, like the DMG's slow screen
   -autopause  pause while the terminal window is in the background (default true)
-  -wav      record the sound to a WAV file
+  -wav        record the sound to a WAV file
 ```
 
 `-ghost` matters for games that flicker sprites on alternate frames to
