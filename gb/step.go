@@ -220,6 +220,40 @@ func (m *Machine) exec(op uint8) {
 		c.setHL(hl + v)
 	case x == 0 && z == 7:
 		c.misc(y)
+	case op == 0x18 || (x == 0 && z == 0 && y >= 4): // JR e, JR cc,e
+		e := int8(m.fetch())
+		if op == 0x18 || c.cond(y-4) {
+			m.tick()
+			c.PC += uint16(e)
+		}
+	case op == 0xC3 || (x == 3 && z == 2 && y < 4): // JP nn, JP cc,nn
+		a := m.fetch16()
+		if op == 0xC3 || c.cond(y) {
+			m.tick()
+			c.PC = a
+		}
+	case op == 0xE9: // JP HL
+		c.PC = c.hl()
+	case op == 0xCD || (x == 3 && z == 4 && y < 4): // CALL nn, CALL cc,nn
+		a := m.fetch16()
+		if op == 0xCD || c.cond(y) {
+			m.tick()
+			m.push(c.PC)
+			c.PC = a
+		}
+	case op == 0xC9: // RET
+		c.PC = m.pop()
+		m.tick()
+	case x == 3 && z == 0 && y < 4: // RET cc
+		m.tick()
+		if c.cond(y) {
+			c.PC = m.pop()
+			m.tick()
+		}
+	case x == 3 && z == 7: // RST
+		m.tick()
+		m.push(c.PC)
+		c.PC = uint16(y) * 8
 	case op == 0xE8: // ADD SP,e
 		v := c.spPlus(m.fetch())
 		m.tick()
@@ -232,6 +266,19 @@ func (m *Machine) exec(op uint8) {
 	default:
 		c.Locked = true
 	}
+}
+
+// cond tests condition i: NZ Z NC C.
+func (c *CPU) cond(i uint8) bool {
+	switch i {
+	case 0:
+		return !c.flag(flagZ)
+	case 1:
+		return c.flag(flagZ)
+	case 2:
+		return !c.flag(flagC)
+	}
+	return c.flag(flagC)
 }
 
 // spPlus adds a signed byte to SP. The flags come from adding the low byte
