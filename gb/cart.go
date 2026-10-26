@@ -30,6 +30,9 @@ type Cart struct {
 	// decides whether the upper one also banks 0x0000 and RAM.
 	Bank1, Bank2 uint8
 	Mode         uint8
+
+	HasRTC bool
+	RTC    RTC
 }
 
 // NewCart wraps a ROM image.
@@ -58,6 +61,7 @@ func NewCart(rom []byte) (*Cart, error) {
 	case 0x0F, 0x10, 0x11, 0x12, 0x13:
 		c.kind = mapMBC3
 		c.Battery = h.Type == 0x0F || h.Type == 0x10 || h.Type == 0x13
+		c.HasRTC = h.Type == 0x0F || h.Type == 0x10
 	default:
 		return nil, fmt.Errorf("cartridge type 0x%02X is not supported", h.Type)
 	}
@@ -112,6 +116,15 @@ func (c *Cart) writeROM(a uint16, v uint8) {
 			}
 		case a < 0x6000:
 			c.RAMBank = int(v & 0x0F)
+		case c.HasRTC:
+			if v == 0 {
+				c.RTC.Armed = true
+			} else if v == 1 && c.RTC.Armed {
+				c.RTC.latch()
+				c.RTC.Armed = false
+			} else {
+				c.RTC.Armed = false
+			}
 		}
 	case mapMBC2:
 		// Address bit 8 picks the register for the whole 0x0000-0x3FFF range.
@@ -133,6 +146,9 @@ func (c *Cart) writeROM(a uint16, v uint8) {
 // enable register.
 func (c *Cart) ramOn() bool { return c.kind == mapNone || c.RAMOn }
 
+// rtcSelected reports whether 0xA000-0xBFFF shows a clock register.
+func (c *Cart) rtcSelected() bool { return c.HasRTC && c.RAMBank >= 8 && c.RAMBank <= 12 }
+
 func (c *Cart) readRAM(a uint16) uint8 {
 	if c.kind == mapMBC2 {
 		if !c.RAMOn {
@@ -141,6 +157,12 @@ func (c *Cart) readRAM(a uint16) uint8 {
 		// 512 half-bytes, repeated over the whole range. The top half of
 		// each byte isn't wired and reads as ones.
 		return c.RAM[a&0x1FF] | 0xF0
+	}
+	if c.rtcSelected() {
+		if !c.RAMOn {
+			return 0xFF
+		}
+		return c.RTC.read(c.RAMBank)
 	}
 	i := c.RAMBank*0x2000 + int(a-0xA000)
 	if len(c.RAM) == 0 || !c.ramOn() {
@@ -153,6 +175,12 @@ func (c *Cart) writeRAM(a uint16, v uint8) {
 	if c.kind == mapMBC2 {
 		if c.RAMOn {
 			c.RAM[a&0x1FF] = v & 0x0F
+		}
+		return
+	}
+	if c.rtcSelected() {
+		if c.RAMOn {
+			c.RTC.write(c.RAMBank, v)
 		}
 		return
 	}
