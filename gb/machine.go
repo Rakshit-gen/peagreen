@@ -19,6 +19,7 @@ type Machine struct {
 	CPU    CPU
 	Cart   *Cart
 	Serial Serial
+	Timer  Timer
 
 	WRAM [0x2000]byte
 	HRAM [0x7F]byte
@@ -53,16 +54,18 @@ func (m *Machine) reset() {
 	c.H, c.L = 0x01, 0x4D
 	c.SP, c.PC = 0xFFFE, 0x0100
 	m.IF = IntVBlank
+	m.Timer.Div = 0xABCC
 }
 
 // tick advances everything but the CPU by one M-cycle (4 T-cycles).
 func (m *Machine) tick() {
 	m.Cycles += 4
+	m.timerTick()
 	m.serialTick()
 }
 
 // stop is what STOP does to the rest of the machine.
-func (m *Machine) stop() {}
+func (m *Machine) stop() { m.timerWrite(0xFF04, 0) }
 
 // Read returns the byte at a, without spending any time.
 func (m *Machine) Read(a uint16) uint8 {
@@ -106,6 +109,10 @@ func (m *Machine) Write(a uint16, v uint8) {
 }
 
 func (m *Machine) readIO(a uint16) uint8 {
+	switch {
+	case a >= 0xFF04 && a <= 0xFF07:
+		return m.timerRead(a)
+	}
 	switch a {
 	case 0xFF01:
 		return m.Serial.SB
@@ -118,6 +125,11 @@ func (m *Machine) readIO(a uint16) uint8 {
 }
 
 func (m *Machine) writeIO(a uint16, v uint8) {
+	switch {
+	case a >= 0xFF04 && a <= 0xFF07:
+		m.timerWrite(a, v)
+		return
+	}
 	switch a {
 	case 0xFF01:
 		m.Serial.SB = v
