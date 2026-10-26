@@ -20,6 +20,7 @@ type Channel struct {
 	// Frequency sweep (1).
 	SweepPeriod, SweepTimer, SweepShift uint8
 	SweepDown, SweepOn                  bool
+	Negated                             bool // a subtracting calculation ran since trigger
 	Shadow                              uint16
 
 	// Wave volume shift (3) and the sample last read.
@@ -118,6 +119,10 @@ func (a *APU) write(addr uint16, v uint8) {
 		switch n {
 		case 0:
 			c.SweepPeriod, c.SweepDown, c.SweepShift = v>>4&7, v&8 != 0, v&7
+			// Leaving subtract mode after it has been used cuts the channel.
+			if c.Negated && !c.SweepDown {
+				c.On = false
+			}
 		case 2:
 			c.DAC = v&0x80 != 0
 			if !c.DAC {
@@ -199,6 +204,7 @@ func (a *APU) trigger(n int) {
 	switch n {
 	case 0:
 		c.Shadow = c.Freq
+		c.Negated = false
 		c.SweepTimer = c.SweepPeriod
 		if c.SweepTimer == 0 {
 			c.SweepTimer = 8
@@ -236,6 +242,7 @@ func (a *APU) sweepCalc() uint16 {
 	f := c.Shadow + d
 	if c.SweepDown {
 		f = c.Shadow - d
+		c.Negated = true
 	}
 	if f > 2047 {
 		c.On = false
