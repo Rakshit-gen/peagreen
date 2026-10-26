@@ -29,3 +29,63 @@ go install github.com/Rakshit-gen/peagreen/cmd/peagreen@latest
 Or from a clone, with `make install`.
 
 Releases are built for Linux and macOS, on amd64 and arm64.
+
+## Playing
+
+| Key | Game Boy |
+| --- | --- |
+| arrows or WASD | d-pad |
+| x or k | A |
+| z or j | B |
+| Enter | Start |
+| Backspace | Select |
+
+| Key | peagreen |
+| --- | --- |
+| p | pause |
+| Tab | fast-forward (4x) |
+| r, held | rewind, up to 30 seconds |
+| `,` and `.` | save and load a state |
+| 1 to 9 | pick the state slot |
+| m | sound off and on |
+| g | ghosting off and on |
+| c | next palette |
+| i | screenshot |
+| ? or h | show the keys |
+| q or Esc | quit |
+
+Terminals only send key presses, not releases, so peagreen counts a key
+as held for a moment after each press, and longer after the first, to
+cover the gap before auto-repeat. Terminals that speak the kitty keyboard
+protocol (kitty, WezTerm, foot, Ghostty and others) send releases too, and
+peagreen uses them when it finds them, which makes the controls much
+tighter.
+
+The frame takes 160 columns by 72 rows. In a smaller terminal peagreen
+draws it at half size, 80 by 36, and it refits when the window changes.
+
+### Files next to the ROM
+
+- `game.sav` holds the cartridge's battery RAM, for games that save. It's
+  written every two seconds or so when the game changed it, and on quit.
+- `game.state` is the save state in slot 1, `game-2.state` slot 2 and so
+  on. A later peagreen may refuse a state if the format changed; the
+  `.sav` file always carries over.
+- `game-1.png`, `game-2.png` and so on are screenshots, at 3x.
+
+### Flags
+
+```
+peagreen play [flags] game.gb
+
+  -palette  green, pocket, gray or amber (default green)
+  -size     full, half or auto (default auto)
+  -colors   24bit, 256, or auto to go by $COLORTERM (default auto)
+  -sound    play sound (default true)
+  -ghost    blend each frame with the one before, like the DMG's slow screen
+  -wav      record the sound to a WAV file
+```
+
+`-ghost` matters for games that flicker sprites on alternate frames to
+get past the limit of ten per line. On the real screen, which is slow to
+change, those sprites look solid; without it they blink.
