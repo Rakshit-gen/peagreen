@@ -268,6 +268,7 @@ type DMAState struct {
 	Pos     int
 	Pending bool // a transfer starts next M-cycle
 	Next    uint16
+	Hold    bool // a transfer copied a byte this M-cycle, so OAM is shut
 }
 
 func (m *Machine) dma(v uint8) {
@@ -289,6 +290,9 @@ func (m *Machine) dmaTick() {
 			d.Pos++
 		}
 	}
+	// OAM shuts with the first byte copied, not when the transfer is set
+	// up, but a restart doesn't open it: the old transfer runs on.
+	d.Hold = d.Active
 	if d.Pending {
 		d.Pending = false
 		d.Active, d.Src, d.Pos = true, d.Next, 0
@@ -298,7 +302,7 @@ func (m *Machine) dmaTick() {
 // blocked reports whether the CPU is shut out of address a, by a running
 // DMA or by the PPU, for a read or a write.
 func (m *Machine) blocked(a uint16, write bool) bool {
-	if a >= 0xFE00 && a < 0xFF00 && m.DMAState.Active {
+	if a >= 0xFE00 && a < 0xFF00 && m.DMAState.Hold {
 		return true
 	}
 	if write {
