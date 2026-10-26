@@ -26,6 +26,10 @@ type player struct {
 	keys    <-chan term.Event
 	pad     keypad
 	quit    bool
+	paused  bool
+	note    string // a passing message for the status line
+	noteEnd time.Time
+	shown   string // the status line as last drawn
 }
 
 func play(args []string) error {
@@ -118,9 +122,12 @@ func (p *player) loop(sigs <-chan os.Signal) error {
 		default:
 		}
 		p.input()
-		p.m.SetButtons(p.pad.buttons(time.Now()))
-		p.m.RunFrame()
-		p.out.Write(p.r.Frame(&p.m.PPU.Screen))
+		if !p.paused {
+			p.m.SetButtons(p.pad.buttons(time.Now()))
+			p.m.RunFrame()
+			p.out.Write(p.r.Frame(&p.m.PPU.Screen))
+		}
+		p.status()
 		next = next.Add(framePeriod)
 		if d := time.Until(next); d > 0 {
 			time.Sleep(d)
@@ -153,9 +160,39 @@ func (p *player) input() {
 			switch e.Key {
 			case term.KeyCtrlC, term.KeyEsc, 'q':
 				p.quit = true
+			case 'p':
+				p.paused = !p.paused
 			}
 		default:
 			return
 		}
 	}
+}
+
+// say shows a message on the status line for a few seconds.
+func (p *player) say(format string, args ...any) {
+	p.note = fmt.Sprintf(format, args...)
+	p.noteEnd = time.Now().Add(3 * time.Second)
+}
+
+// status draws the line under the frame, when it changed.
+func (p *player) status() {
+	line := p.m.Cart.Header.Title
+	if p.paused {
+		line += "  paused"
+	}
+	if p.note != "" && time.Now().Before(p.noteEnd) {
+		line += "  " + p.note
+	} else {
+		line += "  p pause  q quit"
+	}
+	cols, rows := p.r.Size()
+	if len(line) > cols {
+		line = line[:cols]
+	}
+	if line == p.shown {
+		return
+	}
+	p.shown = line
+	fmt.Fprintf(p.out, "\x1b[%d;%dH\x1b[0m\x1b[2K%s", p.r.Row+rows, p.r.Col, line)
 }
