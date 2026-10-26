@@ -23,6 +23,10 @@ const framePeriod = time.Second * 70224 / 4194304
 
 const fastSpeed = 4
 
+// saveEvery is how often, in frames, play checks whether the game wrote to
+// its battery RAM and writes the save file if it did.
+const saveEvery = 120
+
 type player struct {
 	m       *gb.Machine
 	romPath string
@@ -30,6 +34,7 @@ type player struct {
 	out     *os.File
 	keys    <-chan term.Event
 	pad     keypad
+	bat     battery
 	quit    bool
 	paused  bool
 	fast    bool // run fastSpeed frames for each one shown
@@ -65,7 +70,11 @@ func play(args []string) error {
 	if err != nil {
 		return err
 	}
+	if err := loadBattery(m, fs.Arg(0)); err != nil {
+		return err
+	}
 	p := &player{m: m, romPath: fs.Arg(0), out: os.Stdout}
+	p.bat = battery{path: savPath(fs.Arg(0)), last: append([]byte(nil), m.Cart.RAM...)}
 	p.r.Palette = pal
 	if err := p.fit(*size); err != nil {
 		return err
@@ -88,7 +97,13 @@ func play(args []string) error {
 	signal.Notify(sigs, syscall.SIGTERM, syscall.SIGHUP, syscall.SIGINT)
 	defer signal.Stop(sigs)
 	p.keys = term.Read(os.Stdin)
-	return p.loop(sigs)
+	err = p.loop(sigs)
+	// Always write the save on the way out, so a clock's time is kept.
+	p.bat.last = nil
+	if serr := p.bat.save(m); err == nil {
+		err = serr
+	}
+	return err
 }
 
 // fit picks the frame size for the terminal and centres the frame.
@@ -121,7 +136,7 @@ func (p *player) write(s string) { p.out.WriteString(s) }
 
 func (p *player) loop(sigs <-chan os.Signal) error {
 	next := time.Now()
-	for !p.quit {
+	for frame := 0; !p.quit; frame++ {
 		select {
 		case <-sigs:
 			return nil
@@ -134,6 +149,11 @@ func (p *player) loop(sigs <-chan os.Signal) error {
 				p.m.RunFrame()
 			}
 			p.out.Write(p.r.Frame(&p.m.PPU.Screen))
+		}
+		if frame%saveEvery == 0 {
+			if err := p.bat.save(p.m); err != nil {
+				p.say("couldn't write the save: %v", err)
+			}
 		}
 		p.status()
 		next = next.Add(framePeriod)
