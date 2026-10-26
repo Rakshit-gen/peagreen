@@ -4,8 +4,11 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/signal"
+	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -171,6 +174,8 @@ func (p *player) input() {
 				p.fast = !p.fast
 			case 'c':
 				p.nextPalette()
+			case 'i':
+				p.screenshot()
 			}
 		default:
 			return
@@ -197,6 +202,31 @@ func (p *player) nextPalette() {
 	p.r.Invalidate()
 	p.out.Write(p.r.Frame(&p.m.PPU.Screen))
 	p.say("palette %s", p.r.Palette.Name)
+}
+
+// screenshot saves the screen as game-1.png, game-2.png and so on, next
+// to the ROM.
+func (p *player) screenshot() {
+	base := strings.TrimSuffix(p.romPath, filepath.Ext(p.romPath))
+	for n := 1; ; n++ {
+		path := fmt.Sprintf("%s-%d.png", base, n)
+		f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+		if errors.Is(err, fs.ErrExist) {
+			continue
+		}
+		if err == nil {
+			err = screen.WritePNG(f, &p.m.PPU.Screen, p.r.Palette, 3)
+			if cerr := f.Close(); err == nil {
+				err = cerr
+			}
+		}
+		if err != nil {
+			p.say("screenshot failed: %v", err)
+			return
+		}
+		p.say("saved %s", filepath.Base(path))
+		return
+	}
 }
 
 // say shows a message on the status line for a few seconds.
